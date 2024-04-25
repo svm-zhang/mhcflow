@@ -1,15 +1,68 @@
 #!/usr/bin/env bash
 
 
-function run_seqkit_split2 () {
+function find_files_on_pattern () {
+  local wkdir="$1"
+  local pattern="$2"
+  local delimiter="$3"
 
+  if [ -z "$delimiter" ];
+  then
+    delimiter="\n"
+  fi
+
+  if [ -z "$pattern" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "pattern variable cannot be empty to do a search"
+    exit 1
+  fi
+
+  if [ -z "$wkdir" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to find files within"
+    exit 1
+  fi
+  check_dir_exists "$wkdir"
+
+  local array=()
+  while IFS= read -r -d $'\0'; do
+    array+=("$REPLY")
+  done < <(find "$wkdir" -type f -name "$pattern" -print0)
+
+  printf "%s$delimiter" "${array[@]}"
+}
+
+function run_seqkit_split2 () {
   local r1="$1"
   local r2="$2"
   local wkdir="$3"
   local nproc="$4"
 
-  cmdArgs=( "-p" "$nproc" "-e" ".gz" "-j" "$nproc" )
-  cmd=(
+  if [ -z "$r1" ] || [ -z "$r2" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "r1 and r2 variables cannot be empty to run seqkit split2 command"
+    exit 1
+  fi
+
+  if [ -z "$wkdir" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to run seqkit split2 command"
+    exit 1
+  fi
+
+  local logdir="${wkdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logfile="$logdir/seqkit_split2.log"
+  local donefile="$logdir/seqkit_split2.done"
+
+  if [ -f "$donefile" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit split2 done file. Skip"
+    return 0
+  fi
+
+  info "${FUNCNAME[0]}" "$LINENO" "Split read files into $nproc parts"
+  local cmdArgs=( "-p" "$nproc" "-e" ".gz" "-j" "$nproc" )
+  local cmd=(
     "seqkit"
     "split2"
     "-1"
@@ -21,60 +74,122 @@ function run_seqkit_split2 () {
   )
   cmd+=( "${cmdArgs[@]}" )
 
-  # FIXME: log file
-  if ! "${cmd[@]}" >/dev/null 2>&1 ;
+  if ! "${cmd[@]}" >"$logfile" 2>&1 ;
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to run seqkit split2 command"
     error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
     return 255
   fi
 
-}
-
-function find_files_on_pattern () {
-  wkdir="$1"
-  pattern="$2"
-  delimiter="$3"
-
-  if [ -z "$delimiter" ];
+  info "${FUNCNAME[0]}" "$LINENO" "Check if expected number of Fastq files generated"
+  local n_expect_files
+  local n_found_files
+  n_expect_files=$(( "$nproc" * 2 ))
+  local out_files
+  out_files=$( find_files_on_pattern "$wkdir" "*.part_*.fastq.gz" )
+  n_found_files=$( echo "$out_files" | wc -l )
+  if [ "$n_found_files" -ne "$n_expect_files" ];
   then
-    delimiter="\n"
+    error "${FUNCNAME[0]}" "$LINENO" "Seqkit split2 expected to generate $n_expect_files"
+    error "${FUNCNAME[0]}" "$LINENO" "Seqkit split2 generated $n_found_files"
+    exit 1
+  fi
+  check_even=$(( "$n_found_files" % 2 ))
+  if [ "$check_even" -ne 0 ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "Seqkit split2 on paired-end data generates odd number of files"
+    error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+    exit 1
   fi
 
-  check_dir_exists "$wkdir"
-
-  array=()
-  while IFS= read -r -d $'\0'; do
-    array+=("$REPLY")
-  done < <(find "$wkdir" -type f -name "$pattern" -print0)
-
-  printf "%s$delimiter" "${array[@]}"
+  touch "$donefile"
+  
 }
 
 function run_razers3_batch () {
-  wkdir="$1"
-  hlaref="$2"
-  pattern="$3"
-  nproc="$4"
-  nproc_per_job="$5"
+  local wkdir="$1"
+  local hlaref="$2"
+  local pattern="$3"
+  local nproc="$4"
+  local nproc_per_job="$5"
 
+  if [ -z "$wkdir" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to run razers3 in batch"
+    exit 1
+  fi
+
+  if [ -z "$hlaref" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "razers3 reaglinment requires hlaref variable to be not empty"
+    exit 1
+  fi
+
+  # make sure nproc and nproc_per_job have a default value of 1
+  if [ -z "$nproc" ];
+  then
+    nproc=1
+  fi
+
+  if [ -z "$nproc_per_job" ];
+  then
+    nproc_per_job=1
+  fi
+
+  local logdir="${wkdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logfile="$logdir/razers3_fish.log"
+  local donefile="$logdir/razers3_fish.done"
+
+  if [ -f "$donefile" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous razers3 fished alignment done file. Skip"
+    return 0
+  fi
+
+  local fq_files
   fq_files=$( find_files_on_pattern "$wkdir" "$pattern" )
 
   if [ -z "$fq_files" ];
   then
-    error "$0" "$LINENO" "Failed to find any Fastq files to run razerS3"
-    exit 255
+    error "$0" "$LINENO" "Failed to find any Fastq files within ${wkdir} on pattern \"$pattern\""
+    exit 1
   fi
 
+  # now run razers3 in batch
   echo "${fq_files[@]}" | \
     xargs -P"$nproc" -I{} bash -c 'run_razer "$@" || exit 255 ' "$0" "{}" "$hlaref" "$nproc_per_job"
 
+  # when one fastq file is empty, razers3 will issue error
+  # so the above xargs run will terminate when that happens
+  # therefore, if there are 4 files going in, I should expect 4 files going out
+  # when razers3 finds no reads alignemnt, it still generates a BAM with only header
+  local n_expect_files
+  local n_found_files
+  n_expect_files=$( echo "${fq_files[@]}" | wc -l )
+  local out_bams
+  out_bams=$( find_files_on_pattern "$wkdir" "*.razers3*bam" )
+  n_found_files=$( echo "${out_bams[@]}" | wc -l ) 
+  if [ "$n_found_files" -ne "$n_expect_files" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "razers3 expected to generate $n_expect_files"
+    error "${FUNCNAME[0]}" "$LINENO" "razers3 generated $n_found_files"
+    exit 1
+  fi
+
+  touch "$donefile"
 }
 
 function run_razer () {
 	fq="$1"
 	hlaref="$2"
   nproc="$3"
+
+  if [ -z "$fq" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "razers3 requires fq variable to be non-empty"
+    exit 1
+  fi
+  check_file_exists "$hlaref"
 
   if [ -z "$hlaref" ];
   then
@@ -88,10 +203,24 @@ function run_razer () {
     nproc=1
   fi
 
+  local curdir="${fq%/*}"
+  local logdir="${curdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logprefix="${fq##*/}"
+  local logfile="$logdir/${logprefix%.fastq.gz}.razers3.log"
+  local donefile="$logdir/${logprefix%.fastq.gz}.razers3.done"
+  local failfile="$logdir/${logprefix%.fastq.gz}.razers3.fail"
+
+  if [ -f "$donefile" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous razers3 fished alignment done file. Skip"
+    return 0
+  fi
+
+  local bam
 	bam="${fq%.fastq.gz}.razers3.bam"
-  info "${FUNCNAME[0]}" "$LINENO" "Run razers3 realignment on Fastq: $fq"
+  info "${FUNCNAME[0]}" "$LINENO" "Run razers3 realignment on Fastq: ${fq##*/}"
   local cmdArgs=("-i" "95" "-m" "1" "-dr" "0" "-tc" "$nproc")
-  program="razers3"
+  local program="razers3"
   local cmd=(
     "$program"
     "${cmdArgs[@]}"
@@ -101,12 +230,15 @@ function run_razer () {
     "$fq"
   )
 
-  if ! "${cmd[@]}" >/dev/null 2>&1 ;
+  if ! "${cmd[@]}" >"$logfile" 2>&1 ;
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to run razers3 command"
     error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+    touch "$failfile"
     exit 255
   fi
+
+  touch "$donefile"
 
 }
 
