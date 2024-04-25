@@ -131,6 +131,7 @@ wkdir=${out%/*}
 wkdir="${wkdir}/${sample}_hla_realn"
 wkdir=$(make_dir "$wkdir")
 done="${wkdir}/${sample}.hla.realn.done"
+runtime_file="$wkdir/$sample.realn.runtime.tsv"
 if [ -f "${done}" ] && [ -f "${out}" ];
 then
 	info "$0" ${LINENO} "Previous HLA realignment result exists. Skip realignment..."
@@ -141,32 +142,95 @@ fi
 # 1. fish HLA-relevant read candidates using razers3
 # 1.1 split input fastq files using seqkit split2
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment"
-split_dir="$wkdir/split"
-split_dir=$( make_dir "$split_dir" )
-cmd="seqkit split2 -p $nproc -1 $r1 -2 $r2 -O $split_dir -e '.gz' -j $nproc 2>/dev/null"
-run_cmd "$cmd" "$LINENO" "Failed to split Fastq files" 
+wip_dir="$wkdir/wip"
+wip_dir=$( make_dir "$wip_dir" )
+run_seqkit_split2 "$r1" "$r2" "$wip_dir" "$nproc"
+
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment [DONE]"
+# FIXME: check if nproc * 2 files generated, if not, exit
+# FIXME: the number of output files should always be an even number
 
 # 1.2 run razerS3 realignment on each individually split fastq files
 info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment"
-njob=$( echo "$nproc / $nproc_per_job" | bc )
-cmd="find $split_dir -name '$sample.R*.part_*.fastq.gz' -a -not -name '*fish*' | \
-	xargs -P$njob -I{} bash -c 'run_razer \"\$@\"' $LIBREALIGN {} $hla_ref $nproc_per_job"
-run_cmd "$cmd" "$LINENO" "Failed to fish reads in batch using razerS3"
-info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment [DONE]"
+fq_search_regex="*.part_*.fastq.gz"
+run_razers3_batch "$wip_dir" "$hla_ref" "$fq_search_regex" "$nproc" "$nproc_per_job"
 
+# 1.3 extract fished reads from BAM aligned by razerS3
 info "$0" "$LINENO" "Extract fished reads"
-cmd="find $split_dir -name '*.fished.bam' | \
-	xargs -P$nproc -I{} bash -c 'run_bam2fq \"\$@\"'  $LIBREALIGN {}"
-run_cmd "$cmd" "$LINENO" "Failed to fish reads in batch using razerS3"
+bam_search_regex="*.part_*.razers3.bam"
+run_bam2fq_batch "$wip_dir" "$bam_search_regex" "$nproc"
 info "$0" "$LINENO" "Extract fished reads [DONE]"
 
+# 1.4 pair fished reads per split part
+# I am not concatenating and split again as what I did before
+# the regex belwow only gives the suffix part
+info "$0" "$LINENO" "Pair fished reads"
+fq_search_regex=".part_*razers3.fastq.gz"
+gunzip=true
+run_seqkit_pair_batch "$wip_dir" "$fq_search_regex" "$gunzip" "$nproc"
+info "$0" "$LINENO" "Pair fished reads [DONE]"
+
+info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
+fq_search_regex=".part_*razers3.paired.fastq"
+run_novoalign_batch "$wip_dir" "$fq_search_regex" "$hla_ref_nix" "$nproc"
+info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
+
+info "$0" ${LINENO} "Concatenate individually novoaligned BAM files" 
+realn_bam="${wkdir}/${sample}.hla.realn.bam"
+bam_search_regex="*.razers3.paired.bam"
+bam_input_str=$( find_files_on_pattern "$wip_dir" "$bam_search_regex")
+bam_list_file="$wip_dir/bams.list.txt"
+echo "${bam_input_str[@]}" > "$bam_list_file"
+cmd=(
+	"samtools"
+	"cat"
+	"-o"
+	"$realn_bam"
+	"-b"
+	"$bam_list_file"
+)
+if ! "${cmd[@]}" ;
+then
+	error "$0" "$LINENO" "Failed to concatenate novoalign-aligned BAM files"
+	exit 1
+fi
+info "$0" ${LINENO} "Concatenate individually novoaligned BAM files [DONE]" 
+
+info "$0" ${LINENO} "Post-process realigned BAM file" 
+cmd=(
+	"bash"
+	"${SRC_DIR}/bamer.sh"
+	"--bam"
+	"$realn_bam"
+	"--out"
+	"$out"
+)
+if ! "${cmd[@]}" ;
+then
+	error "$0" "$LINENO" "Failed to post-process realigned BAM file"
+fi
+info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
+
+info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
+
+end_time=$(date +%s)
+runtime=$( echo "${end_time} - ${start_time}" | bc -l )
+echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file" 
+
+rm -rf "${wip_dir}"
+
+touch "$done"
+
+exit 0
+
 # 1.3 cat individual fished reads
-fished_r1_fq="$split_dir/$sample.fished.R1.fastq.gz"
-fished_r2_fq="$split_dir/$sample.fished.R2.fastq.gz"
-cmd="find $split_dir -name '*R1*.fished.fastq.gz' -exec cat {} \+ > $fished_r1_fq "
+# FIXME: this does not return gzipped fastq
+# FIXME: lets not cat and split again
+fished_r1_fq="$wip_dir/$sample.fished.R1.fastq.gz"
+fished_r2_fq="$wip_dir/$sample.fished.R2.fastq.gz"
+cmd="find $wip_dir -name '*R1*.fished.fastq.gz' -exec cat {} \+ > $fished_r1_fq "
 run_cmd "$cmd" "$LINENO" "Failed to concatenate fished R1 reads"
-cmd="find $split_dir -name '*R2*.fished.fastq.gz' -exec cat {} \+ > $fished_r2_fq "
+cmd="find $wip_dir -name '*R2*.fished.fastq.gz' -exec cat {} \+ > $fished_r2_fq "
 run_cmd "$cmd" "$LINENO" "Failed to concatenate fished R2 reads"
 
 # 1.4 pair fished reads
@@ -176,8 +240,8 @@ run_cmd "$cmd" "$LINENO" "Failed to pair fished reads"
 info "$0" "$LINENO" "Pair fished reads [DONE]"
 
 # 1.5 realign fished reads using novoalign
-realn_bam="${wkdir}/${sample}.test.fished.realn.bam"
-if [ ! -f "${realn_bam}" ]; then
+realn_bam="${wkdir}/${sample}.hla.realn.bam"
+if [ ! -f "${out}" ]; then
 	info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
 	paired_r1_fq="${fished_r1_fq%.*.*}.paired.fastq.gz"
 	paired_r2_fq="${fished_r2_fq%.*.*}.paired.fastq.gz"
@@ -187,22 +251,23 @@ if [ ! -f "${realn_bam}" ]; then
 	if [ -n "$fqhead" ];
 	then
 		# split paired 
-		cmd="seqkit split2 -p $nproc -1 $paired_r1_fq -2 $paired_r2_fq -O $split_dir -j $nproc 2>/dev/null"
+		cmd="seqkit split2 -p $nproc -1 $paired_r1_fq -2 $paired_r2_fq -O $wip_dir -j $nproc 2>/dev/null"
 		run_cmd "$cmd" "$LINENO" "Failed to split Fastq files" 
+		exit 0
 
-		cmd="find $split_dir -name '*R1*paired.part_*.fastq.gz' | \
+		cmd="find $wip_dir -name '*R1*paired.part_*.fastq.gz' | \
 			xargs -n1 -P$nproc bash -c 'gunzip -f \"\$@\"' _ $1"
 		run_cmd "$cmd" "$LINENO" "Failed to decomparess R1 paired gzipped Fastq files" 
-		cmd="find $split_dir -name '*R2*paired.part_*.fastq.gz' | \
+		cmd="find $wip_dir -name '*R2*paired.part_*.fastq.gz' | \
 			xargs -n1 -P$nproc bash -c 'gunzip -f \"\$@\"' _ $1"
 		run_cmd "$cmd" "$LINENO" "Failed to decomparess R2 paired gzipped Fastq files" 
 
-		cmd="paste <(find $split_dir -name '*R1*paired.part_*.fastq' | sort ) <(find $split_dir -name '*R2*paired.part_*.fastq' | sort ) | \
+		cmd="paste <(find $wip_dir -name '*R1*paired.part_*.fastq' | sort ) <(find $wip_dir -name '*R2*paired.part_*.fastq' | sort ) | \
 			awk '{print \$1\"\n\"\$2}' | \
 			xargs -n2 -P$nproc bash -c 'run_novoalign \"\$@\"' $LIBREALIGN $1 $2 $hla_ref_nix"
 		run_cmd "$cmd" "$LINENO" "Failed to realign paired reads to HLA using Novoalign"
 
-		cmd="samtools cat -o $realn_bam $split_dir/*.paired.part_*.bam"
+		cmd="samtools cat -o $realn_bam $wip_dir/*.paired.part_*.bam"
 		run_cmd "$cmd" "$LINENO" "Failed to concatenate inidividual bams"
 		info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
 
@@ -211,7 +276,7 @@ if [ ! -f "${realn_bam}" ]; then
 		exit 1
 	fi
 else
-	info "$0" "$LINENO" "Found previous realignment results: $realn_bam. Skip..."
+	info "$0" "$LINENO" "Found previous realignment results: $out. Skip..."
 fi
 
 info "$0" ${LINENO} "Post-process realigned BAM file" 
@@ -226,7 +291,7 @@ runtime=$( echo "${end_time} - ${start_time}" | bc -l )
 runtime_file="$wkdir/$sample.realn.runtime.tsv"
 echo -e "${sample}\t$(date -u -d @${runtime} +'%M.%S')m" > "$runtime_file" 
 
-rm -rf "${split_dir}"
+rm -rf "${wip_dir}"
 
 touch "$done"
 
