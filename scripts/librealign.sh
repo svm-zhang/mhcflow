@@ -627,6 +627,54 @@ function run_samtools_cat () {
 
 }
 
+function run_samtools_sort () {
+  local bam="$1"
+  local so_bam="$2"
+  local nproc="$3"
+
+  check_file_exists "$bam"
+
+  if [ -z "$nproc" ];
+  then
+    nproc=1
+  fi
+
+  logdir="${bam%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logfile="$logdir/samtools_sort.log"
+  local donefile="$logdir/samtools_sort.done"
+
+  if [ -f "$donefile" ] && [ -f "$so_bam" ];
+  then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous samtools sort done file. Skip"
+    return 0
+  fi
+
+  so_tmp="${bam%.bam}.tmp."
+  so_bai="${so_bam%.bam}.bam.bai"
+  local cmd=(
+    "samtools"
+    "sort"
+    "-@"
+    "$nproc"
+    "-T"
+    "$so_tmp"
+    "--write-index"
+    "-o"
+    "$so_bam##idx##$so_bai"
+    "$bam"
+  ) 
+
+  if ! "${cmd[@]}" >"$logfile" 2>&1 ;
+  then
+    error "$0" "$LINENO" "Failed to sort BAM files"
+    exit 1
+  fi
+
+  touch "$donefile"
+
+}
+
 export -f run_razer
 export -f run_bam2fq
 export -f run_seqkit_pair
