@@ -27,10 +27,6 @@ SRC_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 COMMON_FUNC_LIB="${SRC_DIR}/hla_bash_util_funcs"
 source "${COMMON_FUNC_LIB}"
 
-# get hla_realign.sh script
-HLA_REALIGN_SRC="${SRC_DIR}/optitype_hla_realign.sh"
-check_file_exists "${HLA_REALIGN_SRC}"
-
 sample=
 bam=
 freq_file=
