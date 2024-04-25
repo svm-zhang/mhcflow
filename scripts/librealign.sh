@@ -527,6 +527,7 @@ function run_novoalign_batch () {
   echo "$paired_input_str" | \
     xargs -P"$nproc" -I{} bash -c 'run_novoalign "$@" || exit 255' "_" "{}" "$hla_ref_nix"
 
+  touch "$donefile"
 }
 
 function run_novoalign () {
@@ -544,7 +545,7 @@ function run_novoalign () {
   local failfile="$logdir/${logprefix%.fastq}.novoalign.fail"
 
   local bam
-  bam="${r1%.fastq}.bam"
+  bam="${r1%.fastq}.novoalign.bam"
   if [ -f "$donefile" ] && [ -f "$bam" ]; then
     info "${FUNCNAME[0]}" "$LINENO" "Found previous novoalign alignment done file. Skip"
     return 0
@@ -581,6 +582,49 @@ function run_novoalign () {
   fi
 
   touch "$donefile"
+}
+
+function run_samtools_cat () {
+  local wkdir="$1"
+  local pattern="$2"
+  local out="$3"
+
+  if [ -z "$wkdir" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to run razers3 in batch"
+    exit 1
+  fi
+
+  local logdir="${wkdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local donefile="$logdir/samtools_cat.done"
+  local logfile="$logdir/samtools_cat.log"
+
+  if [ -f "$donefile" ] && [ -f "$out" ];
+  then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous samtools cat done file. Skip"
+    return 0
+  fi
+
+  bam_input_str=$( find_files_on_pattern "$wkdir" "$pattern")
+  bam_list_file="$wkdir/bams.list.txt"
+  echo "${bam_input_str[@]}" > "$bam_list_file"
+  cmd=(
+    "samtools"
+    "cat"
+    "-o"
+    "$out"
+    "-b"
+    "$bam_list_file"
+  )
+  if ! "${cmd[@]}" >"$logfile" 2>&1 ;
+  then
+    error "$0" "$LINENO" "Failed to concatenate novoalign-aligned BAM files"
+    exit 1
+  fi
+
+  touch "$donefile"
+
 }
 
 export -f run_razer
