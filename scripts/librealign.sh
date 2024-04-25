@@ -337,7 +337,7 @@ function run_bam2fq () {
 
   local fq_size
   # first field returns the size of the compressed file
-  fq_size=$(gunzip -l "$fq" | awk 'NR==2 {print $1}')
+  fq_size=$(zcat "$fq" | head | wc -l)
   if [ "$fq_size" -eq 0 ];
   then
     info "${FUNCNAME[0]}" "$LINENO" "samtools bam2fq returned empty Fastq file. Deleting"
@@ -386,20 +386,8 @@ function run_seqkit_pair_batch () {
   echo "$paired_input_str" | \
     xargs -P"$nproc" -I{} bash -c 'run_seqkit_pair "$@" || exit 255' "_" "{}" "$gunzip"
 
-  local n_expect_files
-  local n_found_files
-  n_expect_files=$( echo "$paired_input_str" | wc -l )
-  out_file_pattern="*razers3.paired.fastq"
-  fq_files=$( find_files_on_pattern "$wkdir" "$out_file_pattern" )
-  n_found_files=$( echo "${fq_files[@]}" | wc -l )
-  n_found_files=$(( "$n_found_files" / 2 ))
-  if [ "$n_found_files" -ne "$n_expect_files" ];
-  then
-    error "${FUNCNAME[0]}" "$LINENO" "razers3 expected to generate $n_expect_files"
-    error "${FUNCNAME[0]}" "$LINENO" "razers3 generated $n_found_files"
-    exit 1
-  fi
-
+  # if no paired reads found, the empty file will be deleted in the subprocess
+  # therefore, I dont need to check file counts
   touch "${donefile}"
 }
 
@@ -425,9 +413,9 @@ function run_seqkit_pair () {
   local logdir="${curdir%/*}/log"
   logdir=$( make_dir "$logdir" )
   local logprefix="${r1##*/}"
-  local logfile="$logdir/${logprefix%.fastq.gz}.pair.log"
-  local donefile="$logdir/${logprefix%.fastq.gz}.pair.done"
-  local failfile="$logdir/${logprefix%.fastq.gz}.pair.fail"
+  local logfile="$logdir/${logprefix%.fastq.gz}.paired.log"
+  local donefile="$logdir/${logprefix%.fastq.gz}.paired.done"
+  local failfile="$logdir/${logprefix%.fastq.gz}.paired.fail"
 
   local paired_r1="${r1%.fastq.gz}.paired.fastq.gz"
   local paired_r2="${r2%.fastq.gz}.paired.fastq.gz"
@@ -466,23 +454,22 @@ function run_seqkit_pair () {
   # check size of the paired read files
   local r1_size
   local r2_size
-  r1_size=$(gunzip -l "$paired_r1" | awk 'NR==2 {print $2}')
-  r2_size=$(gunzip -l "$paired_r2" | awk 'NR==2 {print $2}')
+  r1_size=$(zcat "$paired_r1" | head | wc -l)
+  r2_size=$(zcat "$paired_r2" | head | wc -l)
 
   if [ "$r1_size" -eq 0 ] || [ "$r2_size" -eq 0 ];
   then
     info "${FUNCNAME[0]}" "$LINENO" "Empty paired R1 or R2 Fastq file generated. Deleting"
     # -f in case they do not exists...
     rm -f "$paired_r1" "$paired_r2"
-  fi
-
-  if [ "$gunzip" = true ];
-  then
-    gunzip -f "$paired_r1" "$paired_r2"
+  else
+    if [ "$gunzip" = true ];
+    then
+      gunzip -f "$paired_r1" "$paired_r2"
+    fi
   fi
 
   touch "$donefile"
-
 }
 
 function make_paired_r1_r2_str () {
@@ -521,15 +508,18 @@ function run_novoalign_batch () {
   fi
   check_dir_exists "$wkdir" 
 
-  if [ -z "$pattern" ];
-  then
-    error "${FUNCNAME[0]}" "$LINENO" "pattern variable cannot be empty to search for files"
-    exit 1
-  fi
-
   if [ -z "$nproc" ];
   then
     nproc=1
+  fi
+
+  local logdir="${wkdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local donefile="$logdir/novoalign.done"
+
+  if [ -f "$donefile" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous novoalign alignment done file. Skip"
+    return 0
   fi
 
   paired_input_str=$(make_paired_r1_r2_str "$wkdir" "$pattern")
@@ -545,8 +535,21 @@ function run_novoalign () {
 
   IFS="," read -r r1 r2 <<< "$reads"
 
+  local curdir="${r1%/*}"
+  local logdir="${curdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logprefix="${r1##*/}"
+  local logfile="$logdir/${logprefix%.fastq}.novoalign.log"
+  local donefile="$logdir/${logprefix%.fastq}.novoalign.done"
+  local failfile="$logdir/${logprefix%.fastq}.novoalign.fail"
+
+  local bam
   bam="${r1%.fastq}.bam"
-  done="${bam%.bam}.done"
+  if [ -f "$donefile" ] && [ -f "$bam" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous novoalign alignment done file. Skip"
+    return 0
+  fi
+
   info "${FUNCNAME[0]}" "$LINENO" "Run Novoalign on ${r1##*/} ${r2##*/}"
   local program="novoalign"
   local cmdArgs=("-F" "STDFQ" "-R" "0" "-r" "All" "-o" "SAM" "-o" "FullNW")
@@ -569,15 +572,16 @@ function run_novoalign () {
     "-"
   )
 
-  if ! "${novocmd[@]}" 2>/dev/null | "${samtools_cmd[@]}" >/dev/null 2>&1;
+  if ! "${novocmd[@]}" 2>"$logfile" | "${samtools_cmd[@]}" >/dev/null 2>&1;
   then
-    error "${FUNCNAME[0]}" "$LINENO" "Failed to run samtools bam2fq command"
+    error "${FUNCNAME[0]}" "$LINENO" "Failed to run novoalign command"
     error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+    touch "$failfile"
     exit 255
   fi
 
+  touch "$donefile"
 }
-
 
 export -f run_razer
 export -f run_bam2fq
