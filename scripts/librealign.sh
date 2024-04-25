@@ -29,6 +29,12 @@ function find_files_on_pattern () {
     array+=("$REPLY")
   done < <(find "$wkdir" -type f -name "$pattern" -print0)
 
+  if [ "${#array[@]}" -eq 0 ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "Found no files in $wkdir given pattern \"$pattern\""
+    exit 1
+  fi
+
   printf "%s$delimiter" "${array[@]}"
 }
 
@@ -86,7 +92,12 @@ function run_seqkit_split2 () {
   local n_found_files
   n_expect_files=$(( "$nproc" * 2 ))
   local out_files
-  out_files=$( find_files_on_pattern "$wkdir" "*.part_*.fastq.gz" )
+  # for some reason, I cannot figure out using -regex and -regextype
+  # to make find command return the correct files
+  # thats why I borrow the power of grep...
+  out_files=$( find_files_on_pattern "$wkdir" "*part_[0-9]*.fastq.gz" | \
+    grep -E "*part_[0-9]+.fastq.gz"
+  )
   n_found_files=$( echo "$out_files" | wc -l )
   if [ "$n_found_files" -ne "$n_expect_files" ];
   then
@@ -94,6 +105,8 @@ function run_seqkit_split2 () {
     error "${FUNCNAME[0]}" "$LINENO" "Seqkit split2 generated $n_found_files"
     exit 1
   fi
+
+  # check if there are even number of files generated
   check_even=$(( "$n_found_files" % 2 ))
   if [ "$check_even" -ne 0 ];
   then
@@ -138,7 +151,6 @@ function run_razers3_batch () {
 
   local logdir="${wkdir%/*}/log"
   logdir=$( make_dir "$logdir" )
-  local logfile="$logdir/razers3_fish.log"
   local donefile="$logdir/razers3_fish.done"
 
   if [ -f "$donefile" ]; then
@@ -147,7 +159,9 @@ function run_razers3_batch () {
   fi
 
   local fq_files
-  fq_files=$( find_files_on_pattern "$wkdir" "$pattern" )
+  fq_files=$( find_files_on_pattern "$wkdir" "$pattern" | \
+    grep -E "*part_[0-9]+.fastq.gz"
+  )
 
   if [ -z "$fq_files" ];
   then
@@ -164,10 +178,12 @@ function run_razers3_batch () {
   # therefore, if there are 4 files going in, I should expect 4 files going out
   # when razers3 finds no reads alignemnt, it still generates a BAM with only header
   local n_expect_files
-  local n_found_files
+  local n_found_files=0
   n_expect_files=$( echo "${fq_files[@]}" | wc -l )
   local out_bams
-  out_bams=$( find_files_on_pattern "$wkdir" "*.razers3*bam" )
+  out_bams=$( find_files_on_pattern "$wkdir" "*part_[0-9]*.razers3.bam" | \
+    grep -E "*part_[0-9]+.razers3.bam"
+  )
   n_found_files=$( echo "${out_bams[@]}" | wc -l ) 
   if [ "$n_found_files" -ne "$n_expect_files" ];
   then
@@ -187,14 +203,14 @@ function run_razer () {
   if [ -z "$fq" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "razers3 requires fq variable to be non-empty"
-    exit 1
+    exit 255
   fi
   check_file_exists "$hlaref"
 
   if [ -z "$hlaref" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "HLA reference variable cannot be empty to run razerS3"
-    exit 1
+    exit 255
   fi
   check_file_exists "$hlaref"
 
@@ -211,13 +227,13 @@ function run_razer () {
   local donefile="$logdir/${logprefix%.fastq.gz}.razers3.done"
   local failfile="$logdir/${logprefix%.fastq.gz}.razers3.fail"
 
-  if [ -f "$donefile" ]; then
+  local bam
+	bam="${fq%.fastq.gz}.razers3.bam"
+  if [ -f "$donefile" ] && [ -f "$bam" ]; then
     info "${FUNCNAME[0]}" "$LINENO" "Found previous razers3 fished alignment done file. Skip"
     return 0
   fi
 
-  local bam
-	bam="${fq%.fastq.gz}.razers3.bam"
   info "${FUNCNAME[0]}" "$LINENO" "Run razers3 realignment on Fastq: ${fq##*/}"
   local cmdArgs=("-i" "95" "-m" "1" "-dr" "0" "-tc" "$nproc")
   local program="razers3"
@@ -255,44 +271,82 @@ function run_bam2fq_batch () {
   fi
   check_dir_exists "$wkdir" 
 
+  local logdir="${wkdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local donefile="$logdir/bam2fq.done"
+
+  if [ -f "$donefile" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous bam2fq done file. Skip"
+    return 0
+  fi
+
+  local bam_files
   bam_files=$( find_files_on_pattern "$wkdir" "$pattern" )
   if [ -z "$bam_files" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to find any BAM files to run bam2fq function"
-    exit 255
+    exit 1
   fi
 
   echo "${bam_files[@]}" | \
     xargs -P"$nproc" -I{} bash -c 'run_bam2fq "$@" || exit 255' "_" "{}"
 
+  # I dont need to check if number of inputs equals to the number of outputs
+  # becaues some bam2fq might not return any reads from bam file
+  touch "$donefile"
+
 }
 
+# this function only dumps all reads in one fq
 function run_bam2fq () {
   local bam="$1"
 
   if [ -z "$bam" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "Missing BAM file to run run_bam2fq function"
-    exit 1
+    exit 255
   fi
   check_file_exists "$bam"
 
+  local curdir="${bam%/*}"
+  local logdir="${curdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logprefix="${bam##*/}"
+  local logfile="$logdir/${logprefix%.bam}.bam2fq.log"
+  local donefile="$logdir/${logprefix%.bam}.bam2fq.done"
+  local failfile="$logdir/${logprefix%.bam}.bam2fq.fail"
+
   local fq="${bam%.bam}.fastq.gz"
+  if [ -f "$donefile" ] && [ -f "$fq" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous bam2fq done file. Skip"
+    return 0
+  fi
 
   info "${FUNCNAME[0]}" "$LINENO" "Extract fished reads from BAM: ${bam##*/}"
   # note: samtools bam2fq bam > fq get non-suppl/secondary
   # in this case, I was losing data
   # Using the command below gets all the reads
   local cmd=("samtools" "bam2fq" "-0" "$fq" "$bam")
-  if ! "${cmd[@]}"  2>/dev/null;
+  if ! "${cmd[@]}"  >"$logfile" 2>&1;
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to run samtools bam2fq command"
     error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+    touch "$failfile"
     exit 255
   fi
 
-  # FIXME: add output file checkpoint
-  # if -n returned true, then rm both empty (gzipped)-file
+  local fq_size
+  # first field returns the size of the compressed file
+  fq_size=$(gunzip -l "$fq" | awk 'NR==2 {print $1}')
+  if [ "$fq_size" -eq 0 ];
+  then
+    info "${FUNCNAME[0]}" "$LINENO" "samtools bam2fq returned empty Fastq file. Deleting"
+    # -f in case they do not exists...
+    rm -f "$fq"
+  fi
+
+  touch "$donefile"
+
 }
 
 function run_seqkit_pair_batch () {
@@ -316,14 +370,37 @@ function run_seqkit_pair_batch () {
     nproc=1
   fi
 
-  paired_input_str=$(make_paired_r1_r2_str "$wkdir" "$pattern")
+  local logdir="${wkdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local donefile="$logdir/seqkit_pair.done"
 
+  if [ -f "$donefile" ]; then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit pair done file. Skip"
+    return 0
+  fi
+
+  paired_input_str=$( make_paired_r1_r2_str "$wkdir" "$pattern" )
   # r1 and r2 files passed in as one argument, separated by comma
   # thats why in run_seqkit_pair funciton, we first split string to get
   # r1 and r2 respectively
   echo "$paired_input_str" | \
     xargs -P"$nproc" -I{} bash -c 'run_seqkit_pair "$@" || exit 255' "_" "{}" "$gunzip"
 
+  local n_expect_files
+  local n_found_files
+  n_expect_files=$( echo "$paired_input_str" | wc -l )
+  out_file_pattern="*razers3.paired.fastq"
+  fq_files=$( find_files_on_pattern "$wkdir" "$out_file_pattern" )
+  n_found_files=$( echo "${fq_files[@]}" | wc -l )
+  n_found_files=$(( "$n_found_files" / 2 ))
+  if [ "$n_found_files" -ne "$n_expect_files" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "razers3 expected to generate $n_expect_files"
+    error "${FUNCNAME[0]}" "$LINENO" "razers3 generated $n_found_files"
+    exit 1
+  fi
+
+  touch "${donefile}"
 }
 
 function run_seqkit_pair () {
@@ -344,17 +421,45 @@ function run_seqkit_pair () {
     exit 255
   fi
 
+  local curdir="${r1%/*}"
+  local logdir="${curdir%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logprefix="${r1##*/}"
+  local logfile="$logdir/${logprefix%.fastq.gz}.pair.log"
+  local donefile="$logdir/${logprefix%.fastq.gz}.pair.done"
+  local failfile="$logdir/${logprefix%.fastq.gz}.pair.fail"
+
   local paired_r1="${r1%.fastq.gz}.paired.fastq.gz"
   local paired_r2="${r2%.fastq.gz}.paired.fastq.gz"
+
+  # when guznip is true, I should check for suffix with "fastq", not
+  # "fastq.gz"
+  if [ "$gunzip" = true ];
+  then
+    paired_r1_unzip="${paired_r1%.fastq.gz}.fastq"
+    paired_r2_unzip="${paired_r1%.fastq.gz}.fastq"
+    if [ -f "$donefile" ] && [ -f "$paired_r1_unzip" ] && [ -f "$paired_r2_unzip" ];
+    then
+      info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit pair done file. Skip"
+      return 0
+    fi
+  else
+    if [ -f "$donefile" ] && [ -f "$paired_r1" ] && [ -f "$paired_r2" ];
+    then
+      info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit pair done file. Skip"
+      return 0
+    fi
+  fi
 
   info "${FUNCNAME[0]}" "$LINENO" "Pair fished reads from ${r1##*/} ${r2##*/}"
   local cmd
   cmd=("seqkit" "pair" "-1" "$r1" "-2" "$r2")
-  if ! "${cmd[@]}"  >/dev/null 2>&1;
+  if ! "${cmd[@]}"  >"$logfile" 2>&1;
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to run samtools bam2fq command"
     error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
     rm -f "$paired_r1" "$paired_r2"
+    touch "$failfile"
     exit 255
   fi
 
@@ -375,6 +480,8 @@ function run_seqkit_pair () {
   then
     gunzip -f "$paired_r1" "$paired_r2"
   fi
+
+  touch "$donefile"
 
 }
 
@@ -399,6 +506,7 @@ function make_paired_r1_r2_str () {
   paste -d ',' <(echo "${r1_files[@]}" | sort) <(echo "${r2_files[@]}" | sort)
 
 }
+
 # FIXME: now if you look at all batch function, too much duplicated code
 function run_novoalign_batch () {
   local wkdir="$1"
