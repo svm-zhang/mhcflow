@@ -22,12 +22,15 @@ Usage: $program [options]
 Options:
 EO
 	cat <<EO | column -s\& -t
-	--r1    & Specify the path to R1 fastq (Required)	
-	--r2    & Specify the path to R2 fastq (Required)	
-	--hla_ref    & Specify the HLA reference sequences in Fasta (Required)
 	--sample    & Specify the sample name (Required)
-	-o or --out    & Specify the path to the output BAM file (Required)
+	--realn_dir    & Specify the path to the realigner directory (Required)
+	--typeres    & Specify the path to the HLA typing result (Required)
+	--hla_ref    & Specify the HLA reference sequences in Fasta (Required)
+	--outdir    & Specify the path to the output directory (Required)
 	--nproc    & Specify the number of CPUs used [8]
+	--mdup_ram    & Specify the max amount of RAM for mdup in GB [8]
+	--no_clean    & Specify to not clean any intermediate files
+	--overwrite    & Specify to try to rerun everything
 EO
 }
 
@@ -37,6 +40,9 @@ typing_res=
 hla_ref=
 outdir=
 nproc=8
+mdup_ram=8
+no_clean=false
+overwrite=false
 
 if [ "$#" -le 1 ]; then
 	usage
@@ -73,6 +79,16 @@ while [ $# -gt 0 ]; do
 		shift
 		nproc="$1"
 		;;
+	--mdup_ram)
+		shift
+		mdup_ram="$1"
+		;;
+	--no_clean)
+		no_clean=true
+		;;
+	--overwrite)
+		overwrite=true
+		;;
 	--)
 		shift
 		break
@@ -86,11 +102,31 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-# FIXME: make a final folder
+info "$0" "$LINENO" "Finalize HLA realigner and typer results"
 check_dir_exists "$realn_dir"
 outdir=$( make_dir "$outdir" )
 logdir="$outdir/log"
+ready_bam="$outdir/${sample}.hla.realn.ready.bam"
+donefile="$logdir/${sample}.finalizer.done"
+if [ "$overwrite" = true ];
+then
+	rm -rf "$donefile" "$ready_bam" "$logdir"
+fi
 logdir=$( make_dir "$logdir" )
+
+if [ -f "$ready_bam" ];
+then
+	info "$0" "$LINENO" "Found previous finalizer results. Skip"
+	info "$0" "$LINENO" "Finalize HLA realigner and typer results [DONE]"
+	exit 0
+fi
+
+if [ -f "$donefile" ] && [ ! -f "$ready_bam" ];
+then
+	error "$0" "$LINENO" "Found finalizer done file, but not the finalized BAM file: $ready_bam"
+	error "$0" "$LINENO" "Please re-run razer_realigner first and then finalizer with --overwirte"
+	exit 1
+fi
 
 # 1.1 get sample-level HLA reference based on hlatyping result
 info "$0" "$LINENO" "Get sample-level HLA reference sequence"
@@ -135,26 +171,58 @@ info "$0" "$LINENO" "Index HLA reference using novoindex [DONE]"
 
 # 1.3 run_novoalign_batch function
 info "$0" "$LINENO" "Realign paired reads to sample-level HLA reference using Novoalign"
-pair_dir="$realn_dir/pair"
-novo_dir="$outdir/novoalign"
-novo_dir=$( make_dir "$novo_dir" )
-check_dir_exists "$pair_dir"
-fq_search_regex=".part_*.fastq"
-run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$sample_hla_ref_nix" "$nproc"
-info "$0" "$LINENO" "Realign paired reads to sample-level HLA reference using Novoalign [DONE]"
+novodonefile="$logdir/novoalign.done"
+if [ ! -f "$novodonefile" ];
+then
+	pair_dir="$realn_dir/pair"
+	novo_dir="$outdir/novoalign"
+	novo_dir=$( make_dir "$novo_dir" )
+	info "$0" "$LINENO" "Check if intermediate paired reads from realigner exist"
+	check_dir_exists "$pair_dir"
+	fq_search_regex=".part_*.fastq"
+	run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$sample_hla_ref_nix" "$nproc"
 
-# 1.4 concat bam file
-info "$0" ${LINENO} "Concatenate individually novoaligned BAM files" 
-bam_search_regex="*.bam"
-realn_bam="$outdir/$sample.hla.realn.bam"
-run_samtools_cat "$novo_dir" "$bam_search_regex" "$realn_bam"
-info "$0" ${LINENO} "Concatenate individually novoaligned BAM files [DONE]" 
+	# 1.4 concat bam file
+	info "$0" ${LINENO} "Concatenate individually novoaligned BAM files"
+	bam_search_regex="*.bam"
+	realn_bam="$outdir/$sample.hla.realn.bam"
+	run_samtools_cat "$novo_dir" "$bam_search_regex" "$realn_bam"
+	info "$0" ${LINENO} "Concatenate individually novoaligned BAM files [DONE]"
 
-# 1.4 concat bam file
+	touch "$novodonefile"
+	info "$0" "$LINENO" "Realign paired reads to sample-level HLA reference using Novoalign [DONE]"
+fi
+
+# 1.5 sort bam file
 info "$0" ${LINENO} "Post-process realigned BAM file" 
-realn_so_bam="${realn_bam%.bam}.so.bam"
-run_samtools_sort "$realn_bam" "$realn_so_bam" "$nproc"
+sort_donefile="$logdir/samtools_sort.done"
+if [ ! -f "$sort_donefile" ];
+then
+	realn_so_bam="${realn_bam%.bam}.so.bam"
+	run_samtools_sort "$realn_bam" "$realn_so_bam" "$nproc"
+else
+	info "$0" "$LINENO" "Previous sorted BAM file found. Skip"
+fi
 info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
-info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
+
+# 1.5 mdup bam file
+info "$0" ${LINENO} "Mark PCR duplicates using picard markduplicates"
+mdup_donefile="$logdir/mdup.done"
+if [ ! -f "$mdup_donefile" ];
+then
+	run_picard_mdup "$realn_so_bam" "$ready_bam" "$mdup_ram"
+else
+	info "$0" "$LINENO" "Previous dup-marked BAM file found. Skip"
+fi
+info "$0" ${LINENO} "Mark PCR duplicates using picard markduplicates [DONE]"
+
+if [ "$no_clean" = false ];
+then
+	rm -rf "$realn_bam" "$realn_so_bam" "${realn_so_bam%.bam}.bam.bai" 
+	rm -rf "$novo_dir" "$pair_dir"
+fi
+info "$0" "$LINENO" "Finalize HLA realigner and typer results [DONE]"
+
+touch "$donefile"
 
 exit 0
