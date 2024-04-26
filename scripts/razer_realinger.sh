@@ -34,6 +34,7 @@ sample=
 outdir=
 nproc=8
 nproc_per_job=2
+overwrite=false
 
 if [ "$#" -le 1 ]; then
 	usage
@@ -73,6 +74,9 @@ while [ $# -gt 0 ]; do
 	-p | --nproc_per_job)
 		shift
 		nproc_per_job="$1"
+		;;
+	--overwrite)
+		overwrite=true
 		;;
 	--)
 		shift
@@ -125,9 +129,14 @@ start_time=$(date +%s)
 
 outdir=$( make_dir "$outdir" )
 realn_bam="$outdir/$sample.hla.realigner.bam"
-done="$outdir/$sample.hla.realigner.done"
+donefile="$outdir/$sample.hla.realigner.done"
 runtime_file="$outdir/$sample.realigner.runtime.tsv"
-if [ -f "${done}" ] && [ -f "${realn_bam}" ];
+if [ "$overwrite" = true ];
+then
+	rm -f "$realn_bam" "$donefile"
+fi
+
+if [ -f "${donefile}" ] && [ -f "${realn_bam}" ];
 then
 	info "$0" ${LINENO} "Previous HLA realignment result exists: $realn_bam"
 	info "$0" ${LINENO} "Run RazerS3 HLA realigner [DONE]" 
@@ -186,7 +195,6 @@ info "$0" ${LINENO} "Concatenate individually novoaligned BAM files [DONE]"
 
 # 1.6 sort the merged realigned BAM
 info "$0" ${LINENO} "Post-process realigned BAM file" 
-realn_bam="$outdir/$sample.hla.realn.bam"
 run_samtools_sort "$cat_bam" "$realn_bam" "$nproc"
 info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
@@ -198,4 +206,4 @@ echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file"
 # the paired fastq files are still useful for hlafinalizer.sh
 rm -rf "$splits_dir" "$razer_dir" "$bam2fq_dir" "$novo_dir"
 
-touch "$done"
+touch "$donefile"
