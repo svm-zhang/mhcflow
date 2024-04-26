@@ -21,7 +21,7 @@ EO
 	--r2    & Specify the path to R2 fastq (Required)	
 	--hla_ref    & Specify the HLA reference sequences in Fasta (Required)
 	--sample    & Specify the sample name (Required)
-	-o or --out    & Specify the path to the output BAM file (Required)
+	--outdir    & Specify the path to the output directory (Required)
 	--nproc    & Specify the number of CPUs used [8]
 EO
 }
@@ -31,8 +31,7 @@ r2=
 hla_ref=
 hla_ref_nix=
 sample=
-out=
-skip_fish=false
+outdir=
 nproc=8
 nproc_per_job=2
 
@@ -63,12 +62,9 @@ while [ $# -gt 0 ]; do
 		shift
 		sample="$1"
 		;;
-	-o | --out)
+	--outdir)
 		shift
-		out="$1"
-		;;
-	--skip-fish)
-		skip_fish=false
+		outdir="$1"
 		;;
 	-j | --nproc)
 		shift
@@ -118,8 +114,8 @@ if [ -z "$sample" ]; then
 	exit 1
 fi
 
-if [ -z "$out" ]; then
-	error "$0" "$LINENO" "--out is required"
+if [ -z "$outdir" ]; then
+	error "$0" "$LINENO" "--outdir is required"
 	usage
 	exit 1 
 fi
@@ -127,14 +123,13 @@ fi
 info "$0" ${LINENO} "Run RazerS3 HLA realigner" 
 start_time=$(date +%s)
 
-wkdir=${out%/*}
-wkdir="${wkdir}/${sample}_hla_realn"
-wkdir=$(make_dir "$wkdir")
-done="${wkdir}/${sample}.hla.realn.done"
-runtime_file="$wkdir/$sample.realn.runtime.tsv"
-if [ -f "${done}" ] && [ -f "${out}" ];
+outdir=$( make_dir "$outdir" )
+realn_bam="$outdir/$sample.hla.realigner.bam"
+done="$outdir/$sample.hla.realigner.done"
+runtime_file="$outdir/$sample.realigner.runtime.tsv"
+if [ -f "${done}" ] && [ -f "${realn_bam}" ];
 then
-	info "$0" ${LINENO} "Previous HLA realignment result exists. Skip realignment..."
+	info "$0" ${LINENO} "Previous HLA realignment result exists: $realn_bam"
 	info "$0" ${LINENO} "Run RazerS3 HLA realigner [DONE]" 
 	exit 0
 fi
@@ -142,48 +137,57 @@ fi
 # 1. fish HLA-relevant read candidates using razers3
 # 1.1 split input fastq files using seqkit split2
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment"
-wip_dir="$wkdir/wip"
-wip_dir=$( make_dir "$wip_dir" )
-run_seqkit_split2 "$r1" "$r2" "$wip_dir" "$nproc"
+splits_dir="$outdir/splits"
+splits_dir=$( make_dir "$splits_dir" )
+run_seqkit_split2 "$r1" "$r2" "$splits_dir" "$nproc"
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment [DONE]"
 
 # 1.2 run razerS3 realignment on each individually split fastq files
 info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment"
+razer_dir="$outdir/razer"
 fq_search_regex="*.part_*.fastq.gz"
-run_razers3_batch "$wip_dir" "$hla_ref" "$fq_search_regex" "$nproc" "$nproc_per_job"
+njobs=$(( "$nproc" / "$nproc_per_job" ))
+run_razers3_batch "$splits_dir" "$razer_dir" "$hla_ref" "$fq_search_regex" "$njobs" "$nproc_per_job"
 info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment [DONE]"
 
 # 1.3 extract fished reads from BAM aligned by razerS3
 info "$0" "$LINENO" "Extract fished reads"
+bam2fq_dir="$outdir/bam2fq"
+bam2fq_dir=$( make_dir "$bam2fq_dir" )
 bam_search_regex="*.part_*.razers3.bam"
-run_bam2fq_batch "$wip_dir" "$bam_search_regex" "$nproc"
+run_bam2fq_batch "$razer_dir" "$bam2fq_dir" "$bam_search_regex" "$nproc"
 info "$0" "$LINENO" "Extract fished reads [DONE]"
 
 # 1.4 pair fished reads per split part
 # I am not concatenating and split again as what I did before
 # the regex belwow only gives the suffix part
 info "$0" "$LINENO" "Pair fished reads"
+pair_dir="$outdir/pair"
+pair_dir=$( make_dir "$pair_dir" )
 fq_search_regex=".part_*razers3.fastq.gz"
 gunzip=true
-run_seqkit_pair_batch "$wip_dir" "$fq_search_regex" "$gunzip" "$nproc"
+run_seqkit_pair_batch "$bam2fq_dir" "$pair_dir" "$fq_search_regex" "$gunzip" "$nproc"
 info "$0" "$LINENO" "Pair fished reads [DONE]"
 
 # 1.5 realign fished reads using novoalign
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
-fq_search_regex=".part_*razers3.paired.fastq"
-run_novoalign_batch "$wip_dir" "$fq_search_regex" "$hla_ref_nix" "$nproc"
+novo_dir="$outdir/novoalign"
+novo_dir=$( make_dir "$novo_dir" )
+fq_search_regex=".part_*razers3.fastq"
+run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$hla_ref_nix" "$nproc"
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
 
 # 1.5 concatenate individual bam files to get the merged realigned BAM
 info "$0" ${LINENO} "Concatenate individually novoaligned BAM files" 
-bam_search_regex="*.paired.novoalign.bam"
-realn_bam="$wkdir/$sample.hla.realn.bam"
-run_samtools_cat "$wip_dir" "$bam_search_regex" "$realn_bam"
+bam_search_regex="*.novoalign.bam"
+cat_bam="$novo_dir/$sample.novoalign.cat.bam"
+run_samtools_cat "$novo_dir" "$bam_search_regex" "$cat_bam"
 info "$0" ${LINENO} "Concatenate individually novoaligned BAM files [DONE]" 
 
 # 1.6 sort the merged realigned BAM
 info "$0" ${LINENO} "Post-process realigned BAM file" 
-run_samtools_sort "$realn_bam" "$out" "$nproc"
+realn_bam="$outdir/$sample.hla.realn.bam"
+run_samtools_sort "$cat_bam" "$realn_bam" "$nproc"
 info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
@@ -191,6 +195,7 @@ end_time=$(date +%s)
 runtime=$( echo "${end_time} - ${start_time}" | bc -l )
 echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file" 
 
-rm -rf "${wip_dir}"
+# the paired fastq files are still useful for hlafinalizer.sh
+rm -rf "$splits_dir" "$razer_dir" "$bam2fq_dir" "$novo_dir"
 
 touch "$done"
