@@ -659,6 +659,7 @@ function run_samtools_cat () {
   if ! "${cmd[@]}" >"$logfile" 2>&1 ;
   then
     error "$0" "$LINENO" "Failed to concatenate novoalign-aligned BAM files"
+    error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
     exit 1
   fi
 
@@ -678,7 +679,7 @@ function run_samtools_sort () {
     nproc=1
   fi
 
-  logdir="${bam%/*}/log"
+  logdir="${so_bam%/*}/log"
   logdir=$( make_dir "$logdir" )
   local logfile="$logdir/samtools_sort.log"
   local donefile="$logdir/samtools_sort.done"
@@ -706,12 +707,66 @@ function run_samtools_sort () {
 
   if ! "${cmd[@]}" >"$logfile" 2>&1 ;
   then
-    error "$0" "$LINENO" "Failed to sort BAM files"
+    error "$0" "$LINENO" "Failed to sort the given BAM file"
+    error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
     exit 1
   fi
 
   touch "$donefile"
 
+}
+
+function run_picard_mdup () {
+  local bam="$1"
+  local mdup_bam="$2"
+  local ram="$3"
+
+  if ! check_file_exists "$bam";
+  then
+    exit 1
+  fi
+
+  if [ -z "$ram" ];
+  then
+    ram=8   # in GB
+  fi
+
+  local metric="${mdup_bam%.bam}.mdup.metrics.txt"
+  local logdir="${bam%/*}/log"
+  logdir=$( make_dir "$logdir" )
+  local logfile="$logdir/mdup.log"
+  local donefile="$logdir/mdup.done"
+
+  if [ -f "$donefile" ] && [ -f "$mdup_bam" ];
+  then
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous mdup done file. Skip"
+    return 0
+  fi
+
+  local cmd
+  cmd=(
+    "picard"
+    "-XX:ParallelGCThreads=1"
+    "-Xmx${ram}g"
+    "MarkDuplicates"
+    "--INPUT"
+    "$bam"
+    "--OUTPUT"
+    "$mdup_bam"
+    "--METRICS_FILE"
+    "$metric"
+    "--CREATE_INDEX"
+    "true"
+  )
+  if ! "${cmd[@]}" >"$logfile" 2>&1;
+  then
+    error "$0" ${LINENO} "Failed to mark duplicates in the given BAM file"
+    error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+    exit 1
+  fi
+
+  touch "$donefile"
+  return 0
 }
 
 export -f run_razer
