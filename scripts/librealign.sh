@@ -38,11 +38,32 @@ function find_files_on_pattern () {
   printf "%s$delimiter" "${array[@]}"
 }
 
+function make_paired_r1_r2_str () {
+  local wkdir="$1"
+  local pattern="$2"
+
+  # Watch-out alert 
+  # need more tests on different input r1 r2 files to make sure
+  # this works
+  local r1_pattern="*1$pattern"
+  local r2_pattern="*2$pattern"
+  local r1_files r2_files
+  r1_files=$( find_files_on_pattern "$wkdir" "$r1_pattern" )
+  r2_files=$( find_files_on_pattern "$wkdir" "$r2_pattern" )
+  if [ -z "$r1_files" ] || [ -z "$r2_files" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "Failed to find any read 1 and 2 files to make a string"
+    exit 255
+  fi
+
+  paste -d ',' <(echo "${r1_files[@]}" | sort) <(echo "${r2_files[@]}" | sort)
+}
+
 function run_seqkit_split2 () {
   local r1="$1"
   local r2="$2"
-  local wkdir="$3"
-  local nproc="$4"
+  local outdir="$3"
+  local nparts="$4"
 
   if [ -z "$r1" ] || [ -z "$r2" ];
   then
@@ -50,13 +71,13 @@ function run_seqkit_split2 () {
     exit 1
   fi
 
-  if [ -z "$wkdir" ];
+  if [ -z "$outdir" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to run seqkit split2 command"
     exit 1
   fi
 
-  local logdir="${wkdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
   local logfile="$logdir/seqkit_split2.log"
   local donefile="$logdir/seqkit_split2.done"
@@ -66,8 +87,8 @@ function run_seqkit_split2 () {
     return 0
   fi
 
-  info "${FUNCNAME[0]}" "$LINENO" "Split read files into $nproc parts"
-  local cmdArgs=( "-p" "$nproc" "-e" ".gz" "-j" "$nproc" )
+  info "${FUNCNAME[0]}" "$LINENO" "Split read files into $nparts parts"
+  local cmdArgs=( "-p" "$nparts" "-e" ".gz" "-j" "$nparts" )
   local cmd=(
     "seqkit"
     "split2"
@@ -76,7 +97,7 @@ function run_seqkit_split2 () {
     "-2"
     "$r2"
     "-O"
-    "$wkdir"
+    "$outdir"
   )
   cmd+=( "${cmdArgs[@]}" )
 
@@ -90,12 +111,12 @@ function run_seqkit_split2 () {
   info "${FUNCNAME[0]}" "$LINENO" "Check if expected number of Fastq files generated"
   local n_expect_files
   local n_found_files
-  n_expect_files=$(( "$nproc" * 2 ))
+  n_expect_files=$(( "$nparts" * 2 ))
   local out_files
   # for some reason, I cannot figure out using -regex and -regextype
   # to make find command return the correct files
   # thats why I borrow the power of grep...
-  out_files=$( find_files_on_pattern "$wkdir" "*part_[0-9]*.fastq.gz" | \
+  out_files=$( find_files_on_pattern "$outdir" "*part_[0-9]*.fastq.gz" | \
     grep -E "*part_[0-9]+.fastq.gz"
   )
   n_found_files=$( echo "$out_files" | wc -l )
@@ -120,15 +141,22 @@ function run_seqkit_split2 () {
 }
 
 function run_razers3_batch () {
-  local wkdir="$1"
-  local hlaref="$2"
-  local pattern="$3"
-  local nproc="$4"
-  local nproc_per_job="$5"
+  local indir="$1"
+  local outdir="$2"
+  local hlaref="$3"
+  local pattern="$4"
+  local njobs="$5"
+  local nproc_per_job="$6"
 
-  if [ -z "$wkdir" ];
+  if [ -z "$indir" ];
   then
-    error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to run razers3 in batch"
+    error "${FUNCNAME[0]}" "$LINENO" "indir variable cannot be empty to run razers3 in batch"
+    exit 1
+  fi
+
+  if [ -z "$outdir" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "outdir variable cannot be empty to run razers3 in batch"
     exit 1
   fi
 
@@ -139,9 +167,9 @@ function run_razers3_batch () {
   fi
 
   # make sure nproc and nproc_per_job have a default value of 1
-  if [ -z "$nproc" ];
+  if [ -z "$njobs" ];
   then
-    nproc=1
+    njobs=1
   fi
 
   if [ -z "$nproc_per_job" ];
@@ -149,7 +177,7 @@ function run_razers3_batch () {
     nproc_per_job=1
   fi
 
-  local logdir="${wkdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
   local donefile="$logdir/razers3_fish.done"
 
@@ -159,19 +187,19 @@ function run_razers3_batch () {
   fi
 
   local fq_files
-  fq_files=$( find_files_on_pattern "$wkdir" "$pattern" | \
+  fq_files=$( find_files_on_pattern "$indir" "$pattern" | \
     grep -E "*part_[0-9]+.fastq.gz"
   )
 
   if [ -z "$fq_files" ];
   then
-    error "$0" "$LINENO" "Failed to find any Fastq files within ${wkdir} on pattern \"$pattern\""
+    error "$0" "$LINENO" "Failed to find any Fastq files within ${indir} on pattern \"$pattern\""
     exit 1
   fi
 
   # now run razers3 in batch
   echo "${fq_files[@]}" | \
-    xargs -P"$nproc" -I{} bash -c 'run_razer "$@" || exit 255 ' "$0" "{}" "$hlaref" "$nproc_per_job"
+    xargs -P"$njobs" -I{} bash -c 'run_razer "$@" || exit 255 ' "$0" "{}" "$hlaref" "$outdir" "$nproc_per_job"
 
   # when one fastq file is empty, razers3 will issue error
   # so the above xargs run will terminate when that happens
@@ -181,7 +209,7 @@ function run_razers3_batch () {
   local n_found_files=0
   n_expect_files=$( echo "${fq_files[@]}" | wc -l )
   local out_bams
-  out_bams=$( find_files_on_pattern "$wkdir" "*part_[0-9]*.razers3.bam" | \
+  out_bams=$( find_files_on_pattern "$outdir" "*part_[0-9]*.razers3.bam" | \
     grep -E "*part_[0-9]+.razers3.bam"
   )
   n_found_files=$( echo "${out_bams[@]}" | wc -l ) 
@@ -198,7 +226,8 @@ function run_razers3_batch () {
 function run_razer () {
 	fq="$1"
 	hlaref="$2"
-  nproc="$3"
+  outdir="$3"
+  nproc="$4"
 
   if [ -z "$fq" ];
   then
@@ -219,22 +248,21 @@ function run_razer () {
     nproc=1
   fi
 
-  local curdir="${fq%/*}"
-  local logdir="${curdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
-  local logprefix="${fq##*/}"
-  local logfile="$logdir/${logprefix%.fastq.gz}.razers3.log"
-  local donefile="$logdir/${logprefix%.fastq.gz}.razers3.done"
-  local failfile="$logdir/${logprefix%.fastq.gz}.razers3.fail"
+  local prefix="${fq##*/}"
+  local logfile="$logdir/${prefix%.fastq.gz}.razers3.log"
+  local donefile="$logdir/${prefix%.fastq.gz}.razers3.done"
+  local failfile="$logdir/${prefix%.fastq.gz}.razers3.fail"
 
   local bam
-	bam="${fq%.fastq.gz}.razers3.bam"
+	bam="$outdir/${prefix%.fastq.gz}.razers3.bam"
   if [ -f "$donefile" ] && [ -f "$bam" ]; then
     info "${FUNCNAME[0]}" "$LINENO" "Found previous razers3 fished alignment done file. Skip"
     return 0
   fi
 
-  info "${FUNCNAME[0]}" "$LINENO" "Run razers3 realignment on Fastq: ${fq##*/}"
+  info "${FUNCNAME[0]}" "$LINENO" "Run razers3 realignment on Fastq: $prefix"
   local cmdArgs=("-i" "95" "-m" "1" "-dr" "0" "-tc" "$nproc")
   local program="razers3"
   local cmd=(
@@ -260,18 +288,19 @@ function run_razer () {
 
 function run_bam2fq_batch () {
 
-  local wkdir="$1" 
-  local pattern="$2"
-  local nproc="$3"
+  local indir="$1" 
+  local outdir="$2"
+  local pattern="$3"
+  local nproc="$4"
 
-  if [ -z "$wkdir" ];
+  if [ -z "$indir" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "wkdir varialbe cannot be empty to run run_bam2fq_batch function"
     exit 1
   fi
-  check_dir_exists "$wkdir" 
+  check_dir_exists "$indir" 
 
-  local logdir="${wkdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
   local donefile="$logdir/bam2fq.done"
 
@@ -281,15 +310,16 @@ function run_bam2fq_batch () {
   fi
 
   local bam_files
-  bam_files=$( find_files_on_pattern "$wkdir" "$pattern" )
+  bam_files=$( find_files_on_pattern "$indir" "$pattern" )
   if [ -z "$bam_files" ];
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to find any BAM files to run bam2fq function"
     exit 1
   fi
 
+  local mode="single"
   echo "${bam_files[@]}" | \
-    xargs -P"$nproc" -I{} bash -c 'run_bam2fq "$@" || exit 255' "_" "{}"
+    xargs -P"$nproc" -I{} bash -c 'run_bam2fq_single "$@" || exit 255' "_" "{}" "$outdir"
 
   # I dont need to check if number of inputs equals to the number of outputs
   # becaues some bam2fq might not return any reads from bam file
@@ -298,8 +328,9 @@ function run_bam2fq_batch () {
 }
 
 # this function only dumps all reads in one fq
-function run_bam2fq () {
+function run_bam2fq_single () {
   local bam="$1"
+  local outdir="$2"
 
   if [ -z "$bam" ];
   then
@@ -308,25 +339,24 @@ function run_bam2fq () {
   fi
   check_file_exists "$bam"
 
-  local curdir="${bam%/*}"
-  local logdir="${curdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
-  local logprefix="${bam##*/}"
-  local logfile="$logdir/${logprefix%.bam}.bam2fq.log"
-  local donefile="$logdir/${logprefix%.bam}.bam2fq.done"
-  local failfile="$logdir/${logprefix%.bam}.bam2fq.fail"
+  local prefix="${bam##*/}"
+  local logfile="$logdir/${prefix%.bam}.bam2fq.log"
+  local donefile="$logdir/${prefix%.bam}.bam2fq.done"
+  local failfile="$logdir/${prefix%.bam}.bam2fq.fail"
 
-  local fq="${bam%.bam}.fastq.gz"
+  local fq="$outdir/${prefix%.bam}.fastq.gz"
   if [ -f "$donefile" ] && [ -f "$fq" ]; then
     info "${FUNCNAME[0]}" "$LINENO" "Found previous bam2fq done file. Skip"
     return 0
   fi
 
-  info "${FUNCNAME[0]}" "$LINENO" "Extract fished reads from BAM: ${bam##*/}"
+  info "${FUNCNAME[0]}" "$LINENO" "Extract fished reads from BAM: $prefix"
   # note: samtools bam2fq bam > fq get non-suppl/secondary
   # in this case, I was losing data
   # Using the command below gets all the reads
-  local cmd=("samtools" "bam2fq" "-0" "$fq" "$bam")
+  local  cmd=("samtools" "bam2fq" "-0" "$fq" "$bam")
   if ! "${cmd[@]}"  >"$logfile" 2>&1;
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to run samtools bam2fq command"
@@ -350,27 +380,35 @@ function run_bam2fq () {
 }
 
 function run_seqkit_pair_batch () {
-  local wkdir="$1"
-  local pattern="$2"
+  local indir="$1"
+  local outdir="$2"
+  local pattern="$3"
   # reason to have gunzip as part of the argument is because
   # novoalign (next step) does not take gzipped fastq files
   # kinda lazy to write separate xargs gunzip on all paired reads
-  local gunzip="$3"
-  local nproc="$4"
+  local gunzip="$4"
+  local nproc="$5"
 
-  if [ -z "$wkdir" ];
+  if [ -z "$indir" ];
   then
-    error "${FUNCNAME[0]}" "$LINENO" "wkdir varialbe cannot be empty to search for files given pattern"
+    error "${FUNCNAME[0]}" "$LINENO" "indir varialbe cannot be empty to search for files given pattern"
     exit 1
   fi
-  check_dir_exists "$wkdir" 
+  check_dir_exists "$indir" 
+
+  if [ -z "$outdir" ];
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "outdir varialbe cannot be empty to search for files given pattern"
+    exit 1
+  fi
+  outdir=$( make_dir "$outdir" )
 
   if [ -z "$nproc" ];
   then
     nproc=1
   fi
 
-  local logdir="${wkdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
   local donefile="$logdir/seqkit_pair.done"
 
@@ -379,12 +417,12 @@ function run_seqkit_pair_batch () {
     return 0
   fi
 
-  paired_input_str=$( make_paired_r1_r2_str "$wkdir" "$pattern" )
+  paired_input_str=$( make_paired_r1_r2_str "$indir" "$pattern" )
   # r1 and r2 files passed in as one argument, separated by comma
   # thats why in run_seqkit_pair funciton, we first split string to get
   # r1 and r2 respectively
   echo "$paired_input_str" | \
-    xargs -P"$nproc" -I{} bash -c 'run_seqkit_pair "$@" || exit 255' "_" "{}" "$gunzip"
+    xargs -P"$nproc" -I{} bash -c 'run_seqkit_pair "$@" || exit 255' "_" "{}" "$outdir" "$gunzip"
 
   # if no paired reads found, the empty file will be deleted in the subprocess
   # therefore, I dont need to check file counts
@@ -394,9 +432,10 @@ function run_seqkit_pair_batch () {
 function run_seqkit_pair () {
 
   local reads="$1"
-  local gunzip="$2"
-  IFS="," read -r r1 r2 <<< "$reads"
+  local outdir="$2"
+  local gunzip="$3"
 
+  IFS="," read -r r1 r2 <<< "$reads"
   # check if two input read files are compressed
   if ! gzip -t "$r1" >/dev/null 2>&1;
   then
@@ -409,17 +448,20 @@ function run_seqkit_pair () {
     exit 255
   fi
 
-  local curdir="${r1%/*}"
-  local logdir="${curdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
-  local logprefix="${r1##*/}"
-  local logfile="$logdir/${logprefix%.fastq.gz}.paired.log"
-  local donefile="$logdir/${logprefix%.fastq.gz}.paired.done"
-  local failfile="$logdir/${logprefix%.fastq.gz}.paired.fail"
+  local prefix="${r1##*/}"
+  local logfile="$logdir/${prefix%.fastq.gz}.paired.log"
+  local donefile="$logdir/${prefix%.fastq.gz}.paired.done"
+  local failfile="$logdir/${prefix%.fastq.gz}.paired.fail"
 
-  local paired_r1="${r1%.fastq.gz}.paired.fastq.gz"
-  local paired_r2="${r2%.fastq.gz}.paired.fastq.gz"
+  local paired_r1="$outdir/${r1##*/}"
+  local paired_r2="$outdir/${r2##*/}"
 
+  if [ -f "$failfile" ];
+  then
+    rm -f "$failfile"
+  fi
   # when guznip is true, I should check for suffix with "fastq", not
   # "fastq.gz"
   if [ "$gunzip" = true ];
@@ -441,17 +483,28 @@ function run_seqkit_pair () {
 
   info "${FUNCNAME[0]}" "$LINENO" "Pair fished reads from ${r1##*/} ${r2##*/}"
   local cmd
-  cmd=("seqkit" "pair" "-1" "$r1" "-2" "$r2")
+  cmd=("seqkit" "pair" "-1" "$r1" "-2" "$r2" "-O" "$outdir")
   if ! "${cmd[@]}"  >"$logfile" 2>&1;
   then
-    error "${FUNCNAME[0]}" "$LINENO" "Failed to run samtools bam2fq command"
+    error "${FUNCNAME[0]}" "$LINENO" "Failed to run seqkit pair command"
     error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
     rm -f "$paired_r1" "$paired_r2"
     touch "$failfile"
     exit 255
   fi
 
+  # FIXME: I still feel the part below complicate this function
+  # should have a separate function just do gunzip...
   # check size of the paired read files
+  # just look at the nested if else... so bad
+  cmd=( check_file_exists "$paired_r1" "$paired_r2" )
+  if ! "${cmd[@]}" >>"$logfile" 2>&1;
+  then
+    error "${FUNCNAME[0]}" "$LINENO" "Found no output paired reads"
+    touch "$failfile"
+    exit 255
+  fi
+
   local r1_size
   local r2_size
   r1_size=$(zcat "$paired_r1" | head | wc -l)
@@ -465,55 +518,41 @@ function run_seqkit_pair () {
   else
     if [ "$gunzip" = true ];
     then
-      gunzip -f "$paired_r1" "$paired_r2"
+      cmd=("gunzip" "-f" "$paired_r1" "$paired_r2")
+      if ! "${cmd[@]}" >>"$logfile" 2>&1;
+      then
+        error "${FUNCNAME[0]}" "$LINENO" "Failed to run gunzip command"
+        error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+        touch "$failfile"
+        return 255
+      fi
     fi
   fi
 
   touch "$donefile"
 }
 
-function make_paired_r1_r2_str () {
-  local wkdir="$1"
-  local pattern="$2"
-
-  # Watch-out alert 
-  # need more tests on different input r1 r2 files to make sure
-  # this works
-  local r1_pattern="*1$pattern"
-  local r2_pattern="*2$pattern"
-  local r1_files r2_files
-  r1_files=$( find_files_on_pattern "$wkdir" "$r1_pattern" )
-  r2_files=$( find_files_on_pattern "$wkdir" "$r2_pattern" )
-  if [ -z "$r1_files" ] || [ -z "$r2_files" ];
-  then
-    error "${FUNCNAME[0]}" "$LINENO" "Failed to find any read 1 and 2 files to make a string"
-    exit 255
-  fi
-
-  paste -d ',' <(echo "${r1_files[@]}" | sort) <(echo "${r2_files[@]}" | sort)
-
-}
-
 # FIXME: now if you look at all batch function, too much duplicated code
 function run_novoalign_batch () {
-  local wkdir="$1"
-  local pattern="$2"
-  local hla_ref_nix="$3"
-  local nproc="$4"
+  local indir="$1"
+  local outdir="$2"
+  local pattern="$3"
+  local hla_ref_nix="$4"
+  local nproc="$5"
 
-  if [ -z "$wkdir" ];
+  if [ -z "$indir" ];
   then
-    error "${FUNCNAME[0]}" "$LINENO" "wkdir varialbe cannot be empty to search for files given pattern"
+    error "${FUNCNAME[0]}" "$LINENO" "indir varialbe cannot be empty to search for files given pattern"
     exit 1
   fi
-  check_dir_exists "$wkdir" 
+  check_dir_exists "$indir" 
 
   if [ -z "$nproc" ];
   then
     nproc=1
   fi
 
-  local logdir="${wkdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
   local donefile="$logdir/novoalign.done"
 
@@ -522,10 +561,10 @@ function run_novoalign_batch () {
     return 0
   fi
 
-  paired_input_str=$(make_paired_r1_r2_str "$wkdir" "$pattern")
+  paired_input_str=$(make_paired_r1_r2_str "$indir" "$pattern")
 
   echo "$paired_input_str" | \
-    xargs -P"$nproc" -I{} bash -c 'run_novoalign "$@" || exit 255' "_" "{}" "$hla_ref_nix"
+    xargs -P"$nproc" -I{} bash -c 'run_novoalign "$@" || exit 255' "_" "{}" "$hla_ref_nix" "$outdir"
 
   touch "$donefile"
 }
@@ -533,19 +572,19 @@ function run_novoalign_batch () {
 function run_novoalign () {
   local reads="$1"
   local nix="$2"
+  local outdir="$3"
 
   IFS="," read -r r1 r2 <<< "$reads"
 
-  local curdir="${r1%/*}"
-  local logdir="${curdir%/*}/log"
+  local logdir="$outdir/log"
   logdir=$( make_dir "$logdir" )
-  local logprefix="${r1##*/}"
-  local logfile="$logdir/${logprefix%.fastq}.novoalign.log"
-  local donefile="$logdir/${logprefix%.fastq}.novoalign.done"
-  local failfile="$logdir/${logprefix%.fastq}.novoalign.fail"
+  local prefix="${r1##*/}"
+  local logfile="$logdir/${prefix%.fastq}.novoalign.log"
+  local donefile="$logdir/${prefix%.fastq}.novoalign.done"
+  local failfile="$logdir/${prefix%.fastq}.novoalign.fail"
 
   local bam
-  bam="${r1%.fastq}.novoalign.bam"
+  bam="$outdir/${prefix%.fastq}.novoalign.bam"
   if [ -f "$donefile" ] && [ -f "$bam" ]; then
     info "${FUNCNAME[0]}" "$LINENO" "Found previous novoalign alignment done file. Skip"
     return 0
@@ -585,17 +624,17 @@ function run_novoalign () {
 }
 
 function run_samtools_cat () {
-  local wkdir="$1"
+  local indir="$1"
   local pattern="$2"
   local out="$3"
 
-  if [ -z "$wkdir" ];
+  if [ -z "$indir" ];
   then
-    error "${FUNCNAME[0]}" "$LINENO" "wkdir variable cannot be empty to run razers3 in batch"
+    error "${FUNCNAME[0]}" "$LINENO" "indir variable cannot be empty to run razers3 in batch"
     exit 1
   fi
 
-  local logdir="${wkdir%/*}/log"
+  local logdir="$indir/log"
   logdir=$( make_dir "$logdir" )
   local donefile="$logdir/samtools_cat.done"
   local logfile="$logdir/samtools_cat.log"
@@ -606,8 +645,8 @@ function run_samtools_cat () {
     return 0
   fi
 
-  bam_input_str=$( find_files_on_pattern "$wkdir" "$pattern")
-  bam_list_file="$wkdir/bams.list.txt"
+  bam_input_str=$( find_files_on_pattern "$indir" "$pattern")
+  bam_list_file="$indir/.bams.list.txt"
   echo "${bam_input_str[@]}" > "$bam_list_file"
   cmd=(
     "samtools"
@@ -676,6 +715,6 @@ function run_samtools_sort () {
 }
 
 export -f run_razer
-export -f run_bam2fq
+export -f run_bam2fq_single
 export -f run_seqkit_pair
 export -f run_novoalign
