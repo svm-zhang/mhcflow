@@ -4,7 +4,7 @@ set -e
 
 SRC_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 #COMMON_FUNC_LIB_DIR="${SRC_DIR%/*}/lib"
-COMMON_FUNC_LIB="${SRC_DIR}/hla_bash_util_funcs"
+COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
 LIBREALIGN="${SRC_DIR}/librealign.sh"
 source "$COMMON_FUNC_LIB"
 source "$LIBREALIGN"
@@ -145,15 +145,13 @@ info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment"
 wip_dir="$wkdir/wip"
 wip_dir=$( make_dir "$wip_dir" )
 run_seqkit_split2 "$r1" "$r2" "$wip_dir" "$nproc"
-
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment [DONE]"
-# FIXME: check if nproc * 2 files generated, if not, exit
-# FIXME: the number of output files should always be an even number
 
 # 1.2 run razerS3 realignment on each individually split fastq files
 info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment"
 fq_search_regex="*.part_*.fastq.gz"
 run_razers3_batch "$wip_dir" "$hla_ref" "$fq_search_regex" "$nproc" "$nproc_per_job"
+info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment [DONE]"
 
 # 1.3 extract fished reads from BAM aligned by razerS3
 info "$0" "$LINENO" "Extract fished reads"
@@ -170,47 +168,23 @@ gunzip=true
 run_seqkit_pair_batch "$wip_dir" "$fq_search_regex" "$gunzip" "$nproc"
 info "$0" "$LINENO" "Pair fished reads [DONE]"
 
+# 1.5 realign fished reads using novoalign
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
 fq_search_regex=".part_*razers3.paired.fastq"
 run_novoalign_batch "$wip_dir" "$fq_search_regex" "$hla_ref_nix" "$nproc"
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
 
+# 1.5 concatenate individual bam files to get the merged realigned BAM
 info "$0" ${LINENO} "Concatenate individually novoaligned BAM files" 
-realn_bam="${wkdir}/${sample}.hla.realn.bam"
-bam_search_regex="*.razers3.paired.bam"
-bam_input_str=$( find_files_on_pattern "$wip_dir" "$bam_search_regex")
-bam_list_file="$wip_dir/bams.list.txt"
-echo "${bam_input_str[@]}" > "$bam_list_file"
-cmd=(
-	"samtools"
-	"cat"
-	"-o"
-	"$realn_bam"
-	"-b"
-	"$bam_list_file"
-)
-if ! "${cmd[@]}" ;
-then
-	error "$0" "$LINENO" "Failed to concatenate novoalign-aligned BAM files"
-	exit 1
-fi
+bam_search_regex="*.paired.novoalign.bam"
+realn_bam="$wkdir/$sample.hla.realn.bam"
+run_samtools_cat "$wip_dir" "$bam_search_regex" "$realn_bam"
 info "$0" ${LINENO} "Concatenate individually novoaligned BAM files [DONE]" 
 
+# 1.6 sort the merged realigned BAM
 info "$0" ${LINENO} "Post-process realigned BAM file" 
-cmd=(
-	"bash"
-	"${SRC_DIR}/bamer.sh"
-	"--bam"
-	"$realn_bam"
-	"--out"
-	"$out"
-)
-if ! "${cmd[@]}" ;
-then
-	error "$0" "$LINENO" "Failed to post-process realigned BAM file"
-fi
+run_samtools_sort "$realn_bam" "$out" "$nproc"
 info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
-
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
 end_time=$(date +%s)
@@ -220,79 +194,3 @@ echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file"
 rm -rf "${wip_dir}"
 
 touch "$done"
-
-exit 0
-
-# 1.3 cat individual fished reads
-# FIXME: this does not return gzipped fastq
-# FIXME: lets not cat and split again
-fished_r1_fq="$wip_dir/$sample.fished.R1.fastq.gz"
-fished_r2_fq="$wip_dir/$sample.fished.R2.fastq.gz"
-cmd="find $wip_dir -name '*R1*.fished.fastq.gz' -exec cat {} \+ > $fished_r1_fq "
-run_cmd "$cmd" "$LINENO" "Failed to concatenate fished R1 reads"
-cmd="find $wip_dir -name '*R2*.fished.fastq.gz' -exec cat {} \+ > $fished_r2_fq "
-run_cmd "$cmd" "$LINENO" "Failed to concatenate fished R2 reads"
-
-# 1.4 pair fished reads
-info "$0" "$LINENO" "Pair fished reads"
-cmd="seqkit pair -1 $fished_r1_fq -2 $fished_r2_fq >/dev/null 2>&1"
-run_cmd "$cmd" "$LINENO" "Failed to pair fished reads"
-info "$0" "$LINENO" "Pair fished reads [DONE]"
-
-# 1.5 realign fished reads using novoalign
-realn_bam="${wkdir}/${sample}.hla.realn.bam"
-if [ ! -f "${out}" ]; then
-	info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
-	paired_r1_fq="${fished_r1_fq%.*.*}.paired.fastq.gz"
-	paired_r2_fq="${fished_r2_fq%.*.*}.paired.fastq.gz"
-	check_file_exists "$paired_r1_fq"
-	check_file_exists "$paired_r2_fq"
-	fqhead=$( zcat "$paired_r1_fq" | head )
-	if [ -n "$fqhead" ];
-	then
-		# split paired 
-		cmd="seqkit split2 -p $nproc -1 $paired_r1_fq -2 $paired_r2_fq -O $wip_dir -j $nproc 2>/dev/null"
-		run_cmd "$cmd" "$LINENO" "Failed to split Fastq files" 
-		exit 0
-
-		cmd="find $wip_dir -name '*R1*paired.part_*.fastq.gz' | \
-			xargs -n1 -P$nproc bash -c 'gunzip -f \"\$@\"' _ $1"
-		run_cmd "$cmd" "$LINENO" "Failed to decomparess R1 paired gzipped Fastq files" 
-		cmd="find $wip_dir -name '*R2*paired.part_*.fastq.gz' | \
-			xargs -n1 -P$nproc bash -c 'gunzip -f \"\$@\"' _ $1"
-		run_cmd "$cmd" "$LINENO" "Failed to decomparess R2 paired gzipped Fastq files" 
-
-		cmd="paste <(find $wip_dir -name '*R1*paired.part_*.fastq' | sort ) <(find $wip_dir -name '*R2*paired.part_*.fastq' | sort ) | \
-			awk '{print \$1\"\n\"\$2}' | \
-			xargs -n2 -P$nproc bash -c 'run_novoalign \"\$@\"' $LIBREALIGN $1 $2 $hla_ref_nix"
-		run_cmd "$cmd" "$LINENO" "Failed to realign paired reads to HLA using Novoalign"
-
-		cmd="samtools cat -o $realn_bam $wip_dir/*.paired.part_*.bam"
-		run_cmd "$cmd" "$LINENO" "Failed to concatenate inidividual bams"
-		info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
-
-	else
-		error "$0" "$LINENO" "Found no fished reads that are in pairs."
-		exit 1
-	fi
-else
-	info "$0" "$LINENO" "Found previous realignment results: $out. Skip..."
-fi
-
-info "$0" ${LINENO} "Post-process realigned BAM file" 
-cmd="bash ${SRC_DIR}/bamer.sh --bam $realn_bam --out ${out}"
-run_cmd "$cmd" "$LINENO" "Failed to post-process realigned BAM file"
-info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
-
-info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
-
-end_time=$(date +%s)
-runtime=$( echo "${end_time} - ${start_time}" | bc -l )
-runtime_file="$wkdir/$sample.realn.runtime.tsv"
-echo -e "${sample}\t$(date -u -d @${runtime} +'%M.%S')m" > "$runtime_file" 
-
-rm -rf "${wip_dir}"
-
-touch "$done"
-
-exit 0
