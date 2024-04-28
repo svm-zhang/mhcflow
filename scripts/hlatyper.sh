@@ -23,8 +23,7 @@ EO
 
 # common function script
 SRC_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-#COMMON_FUNC_LIB_DIR="${SRC_DIR%/*}/lib"
-COMMON_FUNC_LIB="${SRC_DIR}/hla_bash_util_funcs"
+COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
 source "${COMMON_FUNC_LIB}"
 
 sample=
