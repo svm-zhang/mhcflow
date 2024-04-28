@@ -163,9 +163,8 @@ cat "$tag_read_ids" "$hla_read_ids" \
 
 merged_R1="${wkdir}/${sample}.merged.R1.fastq"
 merged_R2="${wkdir}/${sample}.merged.R2.fastq"
-samtools view "$bam" \
-	| grep -F -f "$hla_read_merged_ids" \
-	| samtools view -bt "$fai" \
+samtools view -@"$nproc" -bh -N "$hla_read_merged_ids" "$bam" \
+	| samtools sort -n \
 	| samtools fastq -n -1 "$merged_R1" -2 "$merged_R2" -0 /dev/null -s /dev/null \
 	|| die "$0" "$LINENO" "Failed to collect TAG na HLA reads based on ID in BAM"
 info "$0" ${LINENO} "Collect both TAG and HLA reads [DONE]" 
@@ -208,20 +207,30 @@ samtools cat -o "$hla_realign_bam" -b "$list_bams_to_cat" \
 	|| die "$0" "$LINENO" "Failed to concatenate individual split BAM files"
 info "$0" ${LINENO} "Concatenate individual split BAM files [DONE]" 
 
-# FIXME: remove this dependency
-info "$0" ${LINENO} "Post-process realigned BAM file" 
-bash "${SRC_DIR}/bamer.sh" --rmdup --bam "$hla_realign_bam" --out "$out" \
-	|| die "$0" "$LINENO" "Failed to post-process reaglined BAM file"
-info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
+info "$0" ${LINENO} "Sort realigned BAM file" 
+so_tmp="${hla_realign_bam%.bam}.tmp"
+so_bam="${hla_realign_bam%.bam}.so.bam"
+so_bam_bai="${so_bam}.bai"
+# reference: https://github.com/samtools/samtools/issues/1196
+samtools sort -T"$so_tmp" -@"$nproc" --write-index \
+	-o "$so_bam"##idx##"$so_bam_bai" "$hla_realign_bam" 2>/dev/null \
+	|| die "$0" "$LINENO" "Failed to sort reaglined BAM file"
+info "$0" ${LINENO} "Sort realigned BAM file [DONE]" 
 
+info "$0" ${LINENO} "Removing PCR duplicates using samtools rmdup"
+samtools rmdup "$so_bam" "$out" >/dev/null 2>&1 \
+	|| die "$0" "$LINENO" "Failed to remove duplicates in reaglined BAM file"
+samtools index "$out" \
+	|| die "$0" "$LINENO" "Failed to index $out"
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
+
 end_time=$(date +%s)
 runtime=$( echo "${end_time} - ${start_time}" | bc -l )
 runtime_file="${wkdir}/${sample}.realn.runtime.tsv"
 echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${runtime_file}" 
 
-info "$0" "$LINENO" "Clean intermediate results $split_dir"
-rm -rf "$split_dir"
+#info "$0" "$LINENO" "Clean intermediate results $split_dir"
+#rm -rf "$split_dir"
 
 touch "$done"
 
