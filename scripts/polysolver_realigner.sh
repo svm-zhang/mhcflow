@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
 set -e
+set -o pipefail
 
 
 SRC_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-#COMMON_FUNC_LIB_DIR="${SRC_DIR%/*}/lib"
-COMMON_FUNC_LIB="${SRC_DIR}/hla_bash_util_funcs"
-source "${COMMON_FUNC_LIB}"
+COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
+source "$COMMON_FUNC_LIB"
 
 function usage () {
 	local program
-	program=$(basename "$0")
+  program="${0##*/}"
 	cat << EO
 Usage: $program [options]
 Options:
@@ -134,41 +134,53 @@ then
 fi
 
 # getting matching tag sequences
-info "$0" ${LINENO} "Fish reads with exact TAG sequences in BAM" 
+info "$0" ${LINENO} "Fish reads with exact TAG sequences from BAM" 
 tag_read_ids="${wkdir}/${sample}.tag.ids"
-cmd="samtools view $bam | grep -F -f $tag_file | cut -f1 | sort | uniq > $tag_read_ids"
-if ! eval "$cmd";
-then
-	error "$0" ${LINENO} "Failed to extract reads with exact TAG sequences: ${cmd}"
-fi
+samtools view "$bam" \
+	| grep -F -f "$tag_file" \
+	| cut -f1 \
+	| sort \
+	| uniq > "$tag_read_ids" \
+	|| die "$0" "$LINENO" "Failed to fish reads with TAG sequence from BAM "
 info "$0" ${LINENO} "Fish reads with exact TAG sequences in BAM [DONE]" 
 
 #getting chr6 region
 info "$0" ${LINENO} "Get reads mapped to HLA regions in BAM" 
-
 hla_read_ids="${wkdir}/${sample}.hla.ids"
-cmd="samtools view -ML $hla_bed $bam | cut -f1 | sort | uniq > $hla_read_ids"
-if ! eval "$cmd";
-then
-	error "$0" ${LINENO} "Failed to extract reads mapped to HLA regions: ${cmd}"
-fi
+samtools view -ML "$hla_bed" "$bam" \
+	| cut -f1 \
+	| sort \
+	| uniq > "$hla_read_ids" \
+	|| die "$0" "$LINENO" "Failed to get reads mapped to HLA regions in BAM"
 info "$0" ${LINENO} "Get reads mapped to HLA regions in BAM [DONE]" 
 
 info "$0" ${LINENO} "Collect both TAG and HLA reads" 
 hla_read_merged_ids="${wkdir}/${sample}.merged.ids"
-cat "$tag_read_ids" "$hla_read_ids" | sort | uniq > "$hla_read_merged_ids"
+cat "$tag_read_ids" "$hla_read_ids" \
+	| sort \
+	| uniq > "$hla_read_merged_ids" \
+	|| die "$0" "$LINENO" "Failed to merge TAG and HLA read IDs"
 
 merged_R1="${wkdir}/${sample}.merged.R1.fastq"
 merged_R2="${wkdir}/${sample}.merged.R2.fastq"
-samtools view "$bam" | grep -F -f "$hla_read_merged_ids" | samtools view -bt "$fai" | \
-	samtools sort -n | \
-	samtools fastq -1 "$merged_R1" -2 "$merged_R2" -0 /dev/null -s /dev/null -n
-
+samtools view "$bam" \
+	| grep -F -f "$hla_read_merged_ids" \
+	| samtools view -bt "$fai" \
+	| samtools fastq -n -1 "$merged_R1" -2 "$merged_R2" -0 /dev/null -s /dev/null \
+	|| die "$0" "$LINENO" "Failed to collect TAG na HLA reads based on ID in BAM"
 info "$0" ${LINENO} "Collect both TAG and HLA reads [DONE]" 
 
 info "$0" ${LINENO} "Realign reads to HLA using Novoalign" 
 # below gives the number of lines per file to proc.
-nreads_per_proc=$(wc -l "$merged_R1" | awk -v nproc="$nproc" '{print (int(($1/4)/nproc)+1)*4}')
+nreads_per_proc=$(
+	wc -l "$merged_R1" \
+	| awk -v nproc="$nproc" '{print (int(($1/4)/nproc)+1)*4}' \
+	|| die "$0" "$LINENO" "Failed to get number of reads per process to run on"
+)
+# set it 2 if not properly set
+if [ -z "$nreads_per_proc" ]; then
+	nreads_per_proc=2
+fi
 split_dir="${wkdir}/splits"
 split_fq_dir=$(make_dir "${split_dir}/fqs")
 split_bam_dir=$(make_dir "${split_dir}/bams")
@@ -185,30 +197,31 @@ info "$0" ${LINENO} "Realign reads to HLA using Novoalign [DONE]"
 
 hla_realign_bam="${wkdir}/${sample}.hla.realn.bam"
 info "$0" ${LINENO} "Concatenate individual split BAM files" 
-cmd="samtools cat -o $hla_realign_bam $split_bam_dir/*.bam"
-if ! eval "$cmd";
-then
-	error "$0" ${LINENO} "Failed to concatenate split BAM filesi: ${cmd}"
-	exit 1
+list_bams_to_cat="$split_bam_dir/.bams_to_cat.list.txt"
+find "$split_bam_dir" -name "*.bam" > "$list_bams_to_cat" \
+	|| die "$0" "$LINENO" "Failed to find BAM files under $split_bam_dir"
+nbams=$( wc -l <"$list_bams_to_cat" )
+if (( "$nbams" == 0 )); then
+	die "$0" "$LINENO" "Found zero BAM files under $split_bam_dir"
 fi
+samtools cat -o "$hla_realign_bam" -b "$list_bams_to_cat" \
+	|| die "$0" "$LINENO" "Failed to concatenate individual split BAM files"
 info "$0" ${LINENO} "Concatenate individual split BAM files [DONE]" 
 
+# FIXME: remove this dependency
 info "$0" ${LINENO} "Post-process realigned BAM file" 
-cmd="bash ${SRC_DIR}/bamer.sh --rmdup --bam ${hla_realign_bam} --out ${out}"
-if ! eval "$cmd";
-then
-	error "$0" ${LINENO} "Failed to post-process realigned BAM file"
-	exit 1
-fi
+bash "${SRC_DIR}/bamer.sh" --rmdup --bam "$hla_realign_bam" --out "$out" \
+	|| die "$0" "$LINENO" "Failed to post-process reaglined BAM file"
 info "$0" ${LINENO} "Post-process realigned BAM file [DONE]" 
 
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 end_time=$(date +%s)
 runtime=$( echo "${end_time} - ${start_time}" | bc -l )
 runtime_file="${wkdir}/${sample}.realn.runtime.tsv"
-echo -e "${sample}\t$(date -u -d @${runtime} +'%M.%S')m" > "${runtime_file}" 
+echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${runtime_file}" 
 
-rm -r "${split_dir}"
+info "$0" "$LINENO" "Clean intermediate results $split_dir"
+rm -rf "$split_dir"
 
 touch "$done"
 
