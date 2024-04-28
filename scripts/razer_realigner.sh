@@ -3,7 +3,6 @@
 set -e
 
 SRC_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-#COMMON_FUNC_LIB_DIR="${SRC_DIR%/*}/lib"
 COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
 LIBREALIGN="${SRC_DIR}/librealign.sh"
 source "$COMMON_FUNC_LIB"
@@ -23,6 +22,8 @@ EO
 	--sample    & Specify the sample name (Required)
 	--outdir    & Specify the path to the output directory (Required)
 	--nproc    & Specify the number of CPUs used [8]
+	--no_gunzip    & Specify skip decompressing fastq.gz prior to Novoalign
+	--overwrite    & Specify to overwrite all previous results and start new
 EO
 }
 
@@ -35,6 +36,7 @@ outdir=
 nproc=8
 nproc_per_job=2
 overwrite=false
+no_gunzip=false
 
 if [ "$#" -le 1 ]; then
 	usage
@@ -74,6 +76,9 @@ while [ $# -gt 0 ]; do
 	-p | --nproc_per_job)
 		shift
 		nproc_per_job="$1"
+		;;
+	--no_gunzip)
+		no_gunzip=true
 		;;
 	--overwrite)
 		overwrite=true
@@ -174,15 +179,40 @@ info "$0" "$LINENO" "Pair fished reads"
 pair_dir="$outdir/pair"
 pair_dir=$( make_dir "$pair_dir" )
 fq_search_regex=".part_*razers3.fastq.gz"
-gunzip=true
-run_seqkit_pair_batch "$bam2fq_dir" "$pair_dir" "$fq_search_regex" "$gunzip" "$nproc"
+run_seqkit_pair_batch "$bam2fq_dir" "$pair_dir" "$fq_search_regex" "$nproc"
 info "$0" "$LINENO" "Pair fished reads [DONE]"
+
+# --no_gunzip
+# two-layers of if... not pretty
+if [ "$no_gunzip" = false ]; then
+	info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign"
+	gunzip_donefile="$pair_dir/log/gunzip.done"
+	if [ ! -f "$gunzip_donefile" ]; then
+		paired_fq_files=$( find_files_on_pattern "$pair_dir" "*.razers3.fastq.gz")
+		if [ -z "$paired_fq_files" ]; then
+			error "$0" "$LINENO" "Failed to find any paired fastq.gz for gunzip"
+			exit 1
+		fi
+		echo "${paired_fq_files[@]}" | \
+			xargs -P"$nproc" -I{} gunzip {}
+		info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign [DONE]"
+		touch "$gunzip_donefile"
+	else
+		info "$0" "$LINENO" "Paired reads were already gunzipped previously"
+	fi
+fi
 
 # 1.5 realign fished reads using novoalign
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
 novo_dir="$outdir/novoalign"
 novo_dir=$( make_dir "$novo_dir" )
-fq_search_regex=".part_*razers3.fastq"
+fq_search_regex=
+# when no need for gunzipping, we use the fastq.gz as pattern
+if [ "$no_gunzip" = false ]; then
+	fq_search_regex=".part_*razers3.fastq"
+else
+	fq_search_regex=".part_*razers3.fastq.gz"
+fi
 run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$hla_ref_nix" "$nproc"
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
 
@@ -200,7 +230,8 @@ info "$0" ${LINENO} "Post-process realigned BAM file [DONE]"
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
 end_time=$(date +%s)
-runtime=$( echo "${end_time} - ${start_time}" | bc -l )
+#runtime=$( echo "${end_time} - ${start_time}" | bc -l )
+runtime=$(( "$end_time" - "$start_time" ))
 echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file" 
 
 # the paired fastq files are still useful for hlafinalizer.sh
