@@ -19,7 +19,6 @@ EO
 	-b or --bam    & Specify the path to the BAM file [Required]	
 	-t or --tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
 	--nv_idx    & Specify the Novoalign HLA indexed file, e.g. abc_complete.nix [Required]
-	-g or --genome    & Specify the path to the genome (through which .fai will be used) [Required]	
 	--sample    & Specify the sample name [Required]
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	-o or --out    & Specify the path to the reaglined BAM file [Required]
@@ -28,8 +27,6 @@ EO
 }
 
 bam=
-genome=
-fai=
 sample=
 tag_file=
 nv_idx=
@@ -52,8 +49,6 @@ while [ $# -gt 0 ]; do
 			shift; bam=$(parse_path "$1");;
 		-t|--tag)
 			shift; tag_file=$(parse_path "$1");;
-		-g|--genome)
-			shift; genome=$(parse_path "$1");;
 		--nv_idx)
 			shift; nv_idx=$(parse_path "$1");;
 		--sample)
@@ -74,46 +69,31 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-if [ -z "$bam" ];
-then
+if [ -z "$bam" ]; then
 	error "$0" ${LINENO} "polysolver requires a BAM file to work with" 
 	usage
 	exit 1
 fi
 
-if [ -z "$genome" ];
-then
-	error "$0" ${LINENO} "polysolver requires a genome" 
-	usage
-	exit 1
-else
-	fai="$genome.fai"
-	check_file_exists "$fai"
-fi
-
-if [ -z "$sample" ];
-then
+if [ -z "$sample" ]; then
 	error "$0" ${LINENO} "polysolver needs a sample name" 
 	usage
 	exit 1
 fi
 
-if [ -z "$tag_file" ];
-then
+if [ -z "$tag_file" ]; then
 	error "$0" ${LINENO} "polysolver requires a TAG sequence file, such as abc_v14.uniq" 
 	usage
 	exit 1
 fi
 
-if [ -z "$nv_idx" ];
-then
+if [ -z "$nv_idx" ]; then
 	error "$0" ${LINENO} "polysolver requires the Novoalign HLA index, such as abc_complete.nix" 
 	usage
 	exit 1
 fi
 
-if [ -z "$hla_bed" ];
-then
+if [ -z "$hla_bed" ]; then
 	error "$0" ${LINENO} "polysolver requires the HLA region file in BED" 
 	usage
 	exit 1
@@ -126,8 +106,7 @@ wkdir=${out%/*}
 wkdir="${wkdir}/${sample}_hla_realn"
 wkdir=$(make_dir "$wkdir")
 done="${wkdir}/${sample}.hla.realn.done"
-if [ -f "${done}" ] && [ -f "${out}" ];
-then
+if [ -f "${done}" ] && [ -f "${out}" ]; then
 	info "$0" ${LINENO} "Previous HLA realignment result exists. Skip realignment..."
 	info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 	exit 0
@@ -229,8 +208,8 @@ runtime=$( echo "${end_time} - ${start_time}" | bc -l )
 runtime_file="${wkdir}/${sample}.realn.runtime.tsv"
 echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${runtime_file}" 
 
-#info "$0" "$LINENO" "Clean intermediate results $split_dir"
-#rm -rf "$split_dir"
+info "$0" "$LINENO" "Clean intermediate results $split_dir"
+rm -rf "$split_dir"
 
 touch "$done"
 
