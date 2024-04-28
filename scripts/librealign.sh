@@ -433,7 +433,6 @@ function run_seqkit_pair () {
 
   local reads="$1"
   local outdir="$2"
-  local gunzip="$3"
 
   IFS="," read -r r1 r2 <<< "$reads"
   # check if two input read files are compressed
@@ -462,23 +461,11 @@ function run_seqkit_pair () {
   then
     rm -f "$failfile"
   fi
-  # when guznip is true, I should check for suffix with "fastq", not
-  # "fastq.gz"
-  if [ "$gunzip" = true ];
+
+  if [ -f "$donefile" ] && [ -f "$paired_r1" ] && [ -f "$paired_r2" ];
   then
-    paired_r1_unzip="${paired_r1%.fastq.gz}.fastq"
-    paired_r2_unzip="${paired_r1%.fastq.gz}.fastq"
-    if [ -f "$donefile" ] && [ -f "$paired_r1_unzip" ] && [ -f "$paired_r2_unzip" ];
-    then
-      info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit pair done file. Skip"
-      return 0
-    fi
-  else
-    if [ -f "$donefile" ] && [ -f "$paired_r1" ] && [ -f "$paired_r2" ];
-    then
-      info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit pair done file. Skip"
-      return 0
-    fi
+    info "${FUNCNAME[0]}" "$LINENO" "Found previous seqkit pair done file. Skip"
+    return 0
   fi
 
   info "${FUNCNAME[0]}" "$LINENO" "Pair fished reads from ${r1##*/} ${r2##*/}"
@@ -493,10 +480,6 @@ function run_seqkit_pair () {
     exit 255
   fi
 
-  # FIXME: I still feel the part below complicate this function
-  # should have a separate function just do gunzip...
-  # check size of the paired read files
-  # just look at the nested if else... so bad
   cmd=( check_file_exists "$paired_r1" "$paired_r2" )
   if ! "${cmd[@]}" >>"$logfile" 2>&1;
   then
@@ -515,18 +498,6 @@ function run_seqkit_pair () {
     info "${FUNCNAME[0]}" "$LINENO" "Empty paired R1 or R2 Fastq file generated. Deleting"
     # -f in case they do not exists...
     rm -f "$paired_r1" "$paired_r2"
-  else
-    if [ "$gunzip" = true ];
-    then
-      cmd=("gunzip" "-f" "$paired_r1" "$paired_r2")
-      if ! "${cmd[@]}" >>"$logfile" 2>&1;
-      then
-        error "${FUNCNAME[0]}" "$LINENO" "Failed to run gunzip command"
-        error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
-        touch "$failfile"
-        return 255
-      fi
-    fi
   fi
 
   touch "$donefile"
