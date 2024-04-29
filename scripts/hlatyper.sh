@@ -5,7 +5,7 @@ set -e
 
 function usage () {
 	local program
-	program=$(basename "$0")
+	program=$("${0##*/}")
 	cat << EO
 Usage: $program [options]
 Options:
@@ -23,8 +23,8 @@ EO
 
 # common function script
 SRC_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
-source "${COMMON_FUNC_LIB}"
+LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
+source "$LIBCOMMON"
 
 sample=
 bam=
