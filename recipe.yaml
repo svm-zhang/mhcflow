@@ -1,0 +1,55 @@
+context:
+  version: "0.1"
+  name: hlareforged
+
+package:
+  name: "{{ name }}"
+  version: "{{ version }}"
+
+source:
+  - path: ./scripts
+
+build:
+  number: 1
+  string: "linux86"
+  skip:
+    - win
+
+requirements:
+  host:
+    - perl ==5.22.0.1
+    - perl-posix
+    - perl-list-util
+    - perl-list-moreutils
+    - perl-data-dumper
+    - perl-bio-db-sam ==1.41
+  run:
+    - perl ==5.22.0.1
+    - perl-posix
+    - perl-list-util
+    - perl-list-moreutils
+    - perl-data-dumper
+    - perl-bio-db-sam ==1.41
+    - samtools >=1.13
+    - picard
+    - razers3
+    - seqkit
+
+test:
+  exists:
+    bin:
+      - samtools
+      - razers3
+      - seqkit
+      - picard
+      - hlareforged
+      - hlatyper
+      - hlafinalizer
+      - hlapolysolver
+      - polysolver_realigner
+      - first_allele_calculations
+      - second_allele_calculations
+
+extra:
+  maintainers:
+    - Simo V. Zhang (svm.zhang@gmail.com)
