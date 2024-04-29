@@ -5,8 +5,8 @@ set -o pipefail
 
 
 SRC_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
-source "$COMMON_FUNC_LIB"
+LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
+source "$LIBCOMMON"
 
 function usage () {
 	local program

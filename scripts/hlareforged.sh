@@ -3,9 +3,9 @@
 # script to run hla realigner, typer and finalizer from end to end
 
 SRC_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
-LIBREALIGN="${SRC_DIR}/librealign.sh"
-source "$COMMON_FUNC_LIB"
+LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
+LIBREALIGN="${SRC_DIR%/*}/lib/librealign.sh"
+source "$LIBCOMMON"
 source "$LIBREALIGN"
 
 function usage () {
@@ -70,9 +70,7 @@ while [ $# -gt 0 ]; do
 	--no_clean)
     no_clean=true ;;
 	--)
-		shift
-		break
-		;;
+		shift; break;;
 	*)
 		echo "Invalid option: $1" 1>&2
 		usage
@@ -121,8 +119,7 @@ realn_dir="$outdir/realigner"
 typer_dir="$outdir/typer"
 finalizer_dir="$outdir/finalizer"
 cmd=(
-  "bash"
-  "$SRC_DIR/razer_realigner.sh"
+  "razer_realigner"
   "--sample"
   "$sample"
   "--r1"
@@ -148,8 +145,7 @@ if [ -z "$realn_bam" ]; then
   exit 1
 fi
 cmd=(
-  "bash"
-  "$SRC_DIR/hlatyper.sh"
+  "hlatyper"
   "--sample"
   "$sample"
   "--bam"
@@ -174,8 +170,7 @@ if [ -z "$typeres" ]; then
 fi
 
 cmd=(
-  "bash"
-  "$SRC_DIR/hlafinalizer.sh"
+  "hlafinalizer"
   "--sample"
   "$sample"
   "--realn_dir"

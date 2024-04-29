@@ -7,10 +7,9 @@
 set -e
 
 SRC_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-#COMMON_FUNC_LIB_DIR="${SRC_DIR%/*}/lib"
-COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
-LIBREALIGN="${SRC_DIR}/librealign.sh"
-source "$COMMON_FUNC_LIB"
+LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
+LIBREALIGN="${SRC_DIR%/*}/lib/librealign.sh"
+source "$LIBCOMMON"
 source "$LIBREALIGN"
 
 # FIXME: need too update the help message
