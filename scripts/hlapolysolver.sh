@@ -3,8 +3,8 @@
 # script to run hla realigner, typer and finalizer from end to end
 
 SRC_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-COMMON_FUNC_LIB="${SRC_DIR}/libcommon.sh"
-source "$COMMON_FUNC_LIB"
+LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
+source "$LIBCOMMON"
 
 function usage () {
 	local program
@@ -78,8 +78,7 @@ done
 outdir=${out_bam%/*}
 outdir=$( make_dir "$outdir" )
 cmd=(
-  "bash"
-  "$SRC_DIR/polysolver_realigner.sh"
+  "polysolver_realigner"
   "--sample"
   "$sample"
   "--bam"
@@ -107,8 +106,7 @@ fi
 
 # 1.2 run typer
 cmd=(
-  "bash"
-  "$SRC_DIR/hlatyper.sh"
+  "hlatyper"
   "--sample"
   "$sample"
   "--bam"
