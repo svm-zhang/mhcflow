@@ -136,6 +136,7 @@ outdir=$( make_dir "$outdir" )
 realn_bam="$outdir/$sample.hla.realigner.bam"
 donefile="$outdir/$sample.hla.realigner.done"
 runtime_file="$outdir/$sample.realigner.runtime.tsv"
+split_runtime_file="$outdir/$sample.split2.runtime.tsv"
 if [ "$overwrite" = true ];
 then
 	rm -f "$realn_bam" "$donefile"
@@ -155,6 +156,9 @@ splits_dir="$outdir/splits"
 splits_dir=$( make_dir "$splits_dir" )
 run_seqkit_split2 "$r1" "$r2" "$splits_dir" "$nproc"
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment [DONE]"
+end_time=$(date +%s)
+runtime=$(( "$end_time" - "$start_time" ))
+echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$split_runtime_file"
 
 # 1.2 run razerS3 realignment on each individually split fastq files
 info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment"
@@ -230,7 +234,6 @@ info "$0" ${LINENO} "Post-process realigned BAM file [DONE]"
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
 end_time=$(date +%s)
-#runtime=$( echo "${end_time} - ${start_time}" | bc -l )
 runtime=$(( "$end_time" - "$start_time" ))
 echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file" 
 
