@@ -204,7 +204,7 @@ samtools index "$out" \
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
 end_time=$(date +%s)
-runtime=$( echo "${end_time} - ${start_time}" | bc -l )
+runtime=$(( "$end_time" - "$start_time" ))
 runtime_file="${wkdir}/${sample}.realn.runtime.tsv"
 echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${runtime_file}" 
 
