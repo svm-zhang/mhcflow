@@ -130,7 +130,7 @@ if [ ! -f "$a1_loglik_all" ]; then
 
 	find "$a1_dir" -name "*.lik1" | \
 		awk '{n=split($1, a, "/"); gsub(/\.lik1/, "", a[n]); print a[n];}' | \
-		xargs -I{} bash -c "tail -1 ${a1_dir}/{}.lik1 | cut -f2 | paste <(echo {}) - >> $a1_loglik_all"
+		xargs -P"$nproc" -I{} bash -c "tail -1 ${a1_dir}/{}.lik1 | cut -f2 | paste <(echo {}) - >> $a1_loglik_all"
 
 	info "$0" ${LINENO} "Calculating likelihood score for the first HLA allele [DONE]" 
 else
@@ -164,7 +164,7 @@ if [ ! -f "$a2_loglik_all" ]; then
 
 	find "$a2_dir" -name "*.lik2" | \
 		awk '{n=split($1, a, "/"); gsub(/\.lik2/, "", a[n]); print a[n];}' | \
-		xargs -I{} bash -c "tail -1 ${a2_dir}/{}.lik2 | cut -f2 | paste <(echo {}) - >> $a2_loglik_all"
+		xargs -P"$nproc" -I{} bash -c "tail -1 ${a2_dir}/{}.lik2 | cut -f2 | paste <(echo {}) - >> $a2_loglik_all"
 	info "$0" ${LINENO} "Calculating likelihood score for the second HLA allele [DONE]" 
 else
 	info "$0" ${LINENO} "Previous calculation for the second HLA allele exists. Skipping..." 
