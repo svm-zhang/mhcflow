@@ -117,10 +117,9 @@ info "$0" "$LINENO" "Get a list of HLA alleles to calculate log-likelihood score
 if [ ! -f "$a1_loglik_all" ]; then
 	info "$0" ${LINENO} "Calculating likelihood score for the first HLA allele"
 	< "$hla_ids_file" tee | \
-		xargs -P"$nproc" -I{} bash -c "samtools view -bh $bam {} | \
-										samtools sort -n | samtools view | \
-										first_allele_calculations $race {} $freq_file $a1_dir \
-										>$a1_log_dir/$sample.{}.log"
+		xargs -P"$nproc" -I{} bash -c "samtools view -bh $bam {} \
+			| samtools sort -n -O SAM \
+			| first_allele_calculations $race {} $freq_file $a1_dir"
 
 	n_a1_lik_files=$(find "$a1_dir" -name "*.lik1" | wc -l)
 	if [ "$n_a1_lik_files" -eq 0 ];
