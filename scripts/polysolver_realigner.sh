@@ -188,20 +188,12 @@ info "$0" ${LINENO} "Concatenate individual split BAM files [DONE]"
 
 info "$0" ${LINENO} "Sort realigned BAM file" 
 so_tmp="${hla_realign_bam%.bam}.tmp"
-so_bam="${hla_realign_bam%.bam}.so.bam"
-so_bam_bai="${so_bam}.bai"
+out_bai="${out}.bai"
 # reference: https://github.com/samtools/samtools/issues/1196
 samtools sort -T"$so_tmp" -@"$nproc" --write-index \
-	-o "$so_bam"##idx##"$so_bam_bai" "$hla_realign_bam" 2>/dev/null \
+	-o "$out"##idx##"$out_bai" "$hla_realign_bam" 2>/dev/null \
 	|| die "$0" "$LINENO" "Failed to sort reaglined BAM file"
 info "$0" ${LINENO} "Sort realigned BAM file [DONE]" 
-
-info "$0" ${LINENO} "Removing PCR duplicates using samtools rmdup"
-samtools rmdup "$so_bam" "$out" >/dev/null 2>&1 \
-	|| die "$0" "$LINENO" "Failed to remove duplicates in reaglined BAM file"
-samtools index "$out" \
-	|| die "$0" "$LINENO" "Failed to index $out"
-info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
 end_time=$(date +%s)
 runtime=$(( "$end_time" - "$start_time" ))
