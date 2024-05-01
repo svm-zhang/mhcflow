@@ -5,7 +5,7 @@ set -e
 
 function usage () {
 	local program
-	program=$("${0##*/}")
+	program="${0##*/}"
 	cat << EO
 Usage: $program [options]
 Options:
@@ -104,7 +104,6 @@ esac
 outdir=$(make_dir "$outdir")
 
 a1_dir=$(make_dir "${outdir}/a1")
-a1_log_dir=$(make_dir "${a1_dir}/log")
 a1_loglik_all="${outdir}/${sample}.a1.loglik.tsv"
 
 info "$0" "$LINENO" "Get a list of HLA alleles to calculate log-likelihood score"
@@ -117,8 +116,8 @@ info "$0" "$LINENO" "Get a list of HLA alleles to calculate log-likelihood score
 if [ ! -f "$a1_loglik_all" ]; then
 	info "$0" ${LINENO} "Calculating likelihood score for the first HLA allele"
 	< "$hla_ids_file" tee | \
-		xargs -P"$nproc" -I{} bash -c "samtools view -bh $bam {} \
-			| samtools sort -n -O SAM \
+		xargs -P"$nproc" -I{} bash -c "samtools view -bh $bam {} \\
+			| samtools sort -n -O SAM \\
 			| first_allele_calculations $race {} $freq_file $a1_dir"
 
 	n_a1_lik_files=$(find "$a1_dir" -name "*.lik1" | wc -l)
