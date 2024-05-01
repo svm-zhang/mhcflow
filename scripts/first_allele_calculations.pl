@@ -91,6 +91,7 @@ if($race eq "Caucasian" || $race eq "Black" || $race eq "Asian"){
 # calculate likelihood
 $likScore = 0;
 $asScore = 0;
+%res = {};
 for(;;){
 	my $line1 = <STDIN>;
 	last if not defined $line1;
@@ -143,7 +144,7 @@ for(;;){
 	}
 	$likLog = $l1Log + $l2Log;
 	$likLogIscore = $likLog + $iScoreLog;
-	print OUTFILE "$f1[0]\t$likLogIscore\t$likLog\t$iScoreLog\n";
+	$res{$f1[0]} = [($likLogIscore, $likLog, $iScoreLog)];
 	$likLogIscoreTotal = $likLogIscoreTotal + $likLogIscore;
 }
 
@@ -153,6 +154,9 @@ if($includeFreq == 1){
 	$likLogIscoreTotalFreq = $likLogIscoreTotal;
 }
 
+foreach (keys %res) {
+	printf OUTFILE "%s\t%s\n", $_, join("\t", @{$res{$_}});
+}
 print OUTFILE "lik1\t$likLogIscoreTotalFreq\t$likLogIscoreTotal\t$freqComponentLog\n";
 
 close OUTFILE;
