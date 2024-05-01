@@ -35,6 +35,7 @@ outdir=
 mdup_ram=8
 nproc=8
 nproc_per_job=2
+realn_only=false
 overwrite=false
 no_clean=false
 
@@ -65,6 +66,8 @@ while [ $# -gt 0 ]; do
 		shift; nproc_per_job="$1" ;;
   --mdup_ram)
     shift; mdup_ram="$1" ;;
+	--realn_only)
+		realn_only="$1";;
 	--overwrite)
     overwrite=true ;;
 	--no_clean)
@@ -137,6 +140,11 @@ cmd=(
 )
 if ! "${cmd[@]}"; then
   exit 1
+fi
+
+if [ "$realn_only" = true ]; then
+	info "$0" "$LINENO" "Realigner only mode was specified. Quit now"
+	exit 0
 fi
 
 realn_bam=$( find_files_on_pattern "$realn_dir" "${sample}*realigner.bam" )
