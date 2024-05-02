@@ -56,8 +56,8 @@ while [ $# -gt 0 ]; do
 		shift; hla_ref=$(parse_path "$1") ;;
 	--sample)
 		shift; sample="$1" ;;
-  --freq)
-    shift; freq_file=$(parse_path "$1");;
+	--freq)
+		shift; freq_file=$(parse_path "$1");;
 	--outdir)
 		shift; outdir="$1" ;;
 	-j | --nproc)
@@ -67,11 +67,11 @@ while [ $# -gt 0 ]; do
   --mdup_ram)
     shift; mdup_ram="$1" ;;
 	--realn_only)
-		realn_only="$1";;
+		realn_only=true;;
 	--overwrite)
-    overwrite=true ;;
+		overwrite=true ;;
 	--no_clean)
-    no_clean=true ;;
+		no_clean=true ;;
 	--)
 		shift; break;;
 	*)
@@ -143,7 +143,8 @@ if ! "${cmd[@]}"; then
 fi
 
 if [ "$realn_only" = true ]; then
-	info "$0" "$LINENO" "Realigner only mode was specified. Quit now"
+	info "$0" "$LINENO" "Realigner-only mode was specified"
+	info "$0" "$LINENO" "Will not continue typing"
 	exit 0
 fi
 
