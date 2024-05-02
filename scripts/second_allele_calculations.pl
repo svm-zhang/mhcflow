@@ -69,7 +69,6 @@ while($allele = <IDSFILE>){
 	$count++;
 
 	#print "$count\t$allele\n";
-
 	$freqComponent = 0;
 	$freqComponentLog = 0;
 
@@ -81,17 +80,11 @@ while($allele = <IDSFILE>){
 	}
 
 	if($includeFreq == 1){
-
 		$inFile = $a1_dir."/".$allele.".lik1";
-
 		$outFile = $outDir."/".$allele.".lik2";
-	
 	} else {
-
 		$inFile = $a1_dir."/".$allele.".nofreq.lik1";
-
 		$outFile = $outDir."/".$allele.".nofreq.lik2";
-
 	}
 
 	open INFILE, $inFile;
@@ -99,11 +92,8 @@ while($allele = <IDSFILE>){
 	open OUTFILE, ">$outFile";
 
 	$likLogIscoreTotal = 0;
-
 	$reads = 0;
-
 	while($line = <INFILE>){
-
 		chomp($line);
 
 		if($line =~ /^lik1/){
@@ -114,19 +104,32 @@ while($allele = <IDSFILE>){
 
 		@f = split(/\t/,$line);
 
-		$pair = $f[0];
+		my $pair = $f[0];
 
-		$l2 = $f[$scoreCol-1] + $offset;
+		my $l1;
+		my $l2 = $f[$scoreCol-1] + $offset;
 
 		$iScoreLog = $f[$scoreCol];
 
 		if($allele =~ /hla_a/){
-			$l1 = $winnerA{$pair};
+			if(exists $winnerA{$pair}) {
+				$l1 = $winnerA{$pair};
+			}else {
+				$l1 = 0;
+			}
 		} elsif($allele =~ /hla_b/){
-			$l1 = $winnerB{$pair};
+			if(exists $winnerB{$pair}) {
+				$l1 = $winnerB{$pair};
+			}else {
+				$l1 = 0;
+			}
 		} elsif($allele =~ /hla_c/){
-			$l1 = $winnerC{$pair};
-                 } else {
+			if(exists $winnerC{$pair}) {
+				$l1 = $winnerC{$pair};
+			}else {
+				$l1 = 0;
+			}
+    } else {
 			die "allele = $allele is not valid in parse_sam_lik2_fast.pl pair = $pair\n";
 		}
 		
@@ -137,20 +140,17 @@ while($allele = <IDSFILE>){
 		}		
 
 		#print "$pair\t$factor\t$l2\n";
-		print OUTFILE "$pair\t$l2\n";
+		# Note: I dont need to output per-reads score for 2nd allele
+		# only needs the final score for typing
+		#print OUTFILE "$pair\t$l2\n";
 
 		$likLogIscoreTotal = $likLogIscoreTotal + $l2;
 	}
 
 	if($includeFreq == 1){
-
-        	$likLogIscoreTotalFreq = $likLogIscoreTotal + $freqComponentLog;
-
-
+    $likLogIscoreTotalFreq = $likLogIscoreTotal + $freqComponentLog;
 	} else {
-
-        	$likLogIscoreTotalFreq = $likLogIscoreTotal;
-
+    $likLogIscoreTotalFreq = $likLogIscoreTotal;
 	}
 
 	print OUTFILE "lik2\t$likLogIscoreTotalFreq\t$likLogIscoreTotal\t$freqComponentLog\n";
