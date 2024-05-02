@@ -91,7 +91,7 @@ if($race eq "Caucasian" || $race eq "Black" || $race eq "Asian"){
 # calculate likelihood
 $likScore = 0;
 $asScore = 0;
-%res = {};
+my %res;
 for(;;){
 	my $line1 = <STDIN>;
 	last if not defined $line1;
@@ -103,8 +103,7 @@ for(;;){
 	if($f1[0] ne $f2[0]){
 		next;
 	}
-	#$i++;
-	if($f1[2] ne $f2[2] || $f1[5]=~/I/ || $f1[5]=~/D/ || $f1[5]=~/\*/ || $f2[5]=~/I/ || $f2[5]=~/D/ || $f2[5]=~/\*/ || $f1[6] ne "=" || $f2[6] ne "="){
+	if($f2[2] ne $f2[2] || $f1[5]=~/I/ || $f1[5]=~/D/ || $f1[5]=~/\*/ || $f2[5]=~/I/ || $f2[5]=~/D/ || $f2[5]=~/\*/ || $f1[6] ne "=" || $f2[6] ne "="){
 		next;
 	}	
 	$allele = $f1[2];
