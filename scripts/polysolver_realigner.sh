@@ -115,12 +115,37 @@ fi
 # getting matching tag sequences
 info "$0" ${LINENO} "Fish reads with exact TAG sequences from BAM" 
 tag_read_ids="${wkdir}/${sample}.tag.ids"
+info "$0" ${LINENO} "Split BAM into parts for faster fishing reads" 
+split_bam_dir="${wkdir}/bams"
+split_bam_dir=$( make_dir "$split_bam_dir" )
+bam_size=$( du -bs "$bam" | awk '{print $1/2^30}' )
+if [ -z "$bam_size" ]; then
+	die "$0" "$LINENO" "Failed to obtaint input BAM file size"
+fi
+info "$0" ${LINENO} "Obtain input BAM file size: ${bam_size}G" 
+bam_size_int=$( printf "%.0f" "$bam_size" )
+split_size=$(( (bam_size_int+1+nproc-1)/nproc ))
+info "$0" ${LINENO} "Split BAM file into ${split_size}G each" 
+# split bam files
 samtools view "$bam" \
-	| grep -F -f "$tag_file" \
-	| cut -f1 \
+	| cut -f1,10 \
+	| split -C "${split_size}G" -d -a 2 --additional-suffix ".txt" - "$split_bam_dir/" \
+	|| die "$0" "$LINENO" "Failed to split input bam to parts for fishing tags"
+
+info "$0" ${LINENO} "Fish reads from each individual split file" 
+find "$split_bam_dir" -name "*.txt" \
+	| sed 's/\.txt//g' \
+	| xargs -P"$nproc" -I{} bash -c "grep -F -f $tag_file {}.txt | cut -f1 > {}.ids"
+
+info "$0" ${LINENO} "Merge individually fished reads" 
+find "$split_bam_dir" -name "*.ids" -exec cat {} + \
 	| sort \
 	| uniq > "$tag_read_ids" \
-	|| die "$0" "$LINENO" "Failed to fish reads with TAG sequence from BAM "
+	|| die "$0" "$LINENO" "Failed to merged individually fished reads "
+
+if [ -d "$split_bam_dir" ]; then
+	rm -rf "$split_bam_dir"
+fi
 info "$0" ${LINENO} "Fish reads with exact TAG sequences in BAM [DONE]" 
 
 #getting chr6 region
@@ -198,7 +223,7 @@ info "$0" ${LINENO} "Sort realigned BAM file [DONE]"
 end_time=$(date +%s)
 runtime=$(( "$end_time" - "$start_time" ))
 runtime_file="${wkdir}/${sample}.realn.runtime.tsv"
-echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${runtime_file}" 
+echo -e "${sample}\t${bam_size}G\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${runtime_file}" 
 
 info "$0" "$LINENO" "Clean intermediate results $split_dir"
 rm -rf "$split_dir"
