@@ -108,16 +108,20 @@ a1_loglik_all="${outdir}/${sample}.a1.loglik.tsv"
 
 info "$0" "$LINENO" "Get a list of HLA alleles to calculate log-likelihood score"
 hla_ids_file="${outdir}/hla_ids.txt"
-#grep "^>" "$hla_ref" | sed 's/^>//g' > "$hla_ids_file"
 cmd="samtools view -H $bam | grep '^@SQ' | cut -f2 | sed 's/^SN://g' > $hla_ids_file"
 run_cmd "$cmd" "$LINENO" "Failed to get HLA alleles"
 info "$0" "$LINENO" "Get a list of HLA alleles to calculate log-likelihood score [DONE]"
 
 if [ ! -f "$a1_loglik_all" ]; then
 	info "$0" ${LINENO} "Calculating likelihood score for the first HLA allele"
+	# -f2 and -F12 are crucial to make first_allele_calculations work
+	# because the perl script reads two STDIN at the same
+	# any disruption in terms of read name not matching will result
+	# in loss of reads being counted into the final score
 	< "$hla_ids_file" tee | \
-		xargs -P"$nproc" -I{} bash -c "samtools view -bh $bam {} \\
+		xargs -P"$nproc" -I{} bash -c "samtools view -f2 -F12 -b $bam {} \\
 			| samtools sort -n -O SAM \\
+			| grep -v '^@' \\
 			| first_allele_calculations $race {} $freq_file $a1_dir"
 
 	n_a1_lik_files=$(find "$a1_dir" -name "*.lik1" | wc -l)
@@ -129,7 +133,16 @@ if [ ! -f "$a1_loglik_all" ]; then
 
 	find "$a1_dir" -name "*.lik1" | \
 		awk '{n=split($1, a, "/"); gsub(/\.lik1/, "", a[n]); print a[n];}' | \
-		xargs -P"$nproc" -I{} bash -c "tail -1 ${a1_dir}/{}.lik1 | cut -f2 | paste <(echo {}) - >> $a1_loglik_all"
+		xargs -P"$nproc" -I{} bash -c "tail -1 ${a1_dir}/{}.lik1 \\
+			| cut -f2 \\
+			| paste <(echo {}) - >> $a1_loglik_all"
+
+	content_a1=$(head "$a1_loglik_all")
+	if [ -z "$content_a1" ];
+	then
+		error "$0" ${LINENO} "Allele1 file with posterior score is empyt: $a1_loglik_all"
+		exit 1
+	fi
 
 	info "$0" ${LINENO} "Calculating likelihood score for the first HLA allele [DONE]" 
 else
@@ -143,15 +156,20 @@ a2_loglik_all="${outdir}/${sample}.a2.loglik.tsv"
 if [ ! -f "$a2_loglik_all" ]; then
 
 	info "$0" ${LINENO} "Calculating likelihood score for the second HLA allele" 
-	# check if a1_dir exists with contents
-	# check if a1 loglik file exists
-	content_filt_a1=$(head "${a1_loglik_all}")	
-	if [ -z "${content_filt_a1}" ];
-	then
-		error "$0" ${LINENO} "All A1 alelle calculation return score of zero"
-	fi
+	# here I remove some of the alleles with score of zero to speed
+	# things up a bit
 	filt_a1_loglik_all="${outdir}/${sample}.a1.loglik.filt.tsv"
-	awk '($2 > 0)' "$a1_loglik_all" > "$filt_a1_loglik_all"
+	awk '($2 > 0)' "$a1_loglik_all" > "$filt_a1_loglik_all" \
+		|| die "$0" "$LINENO" "Failed to filter Allele1 score file: $a1_loglik_all"
+	# need to make sure filtered score file is not empty
+	# it is actually better if we check the file empty or not in the perl script
+	# FIXME: duplicated code, make a function out of it
+	content_filt_a1=$(head "$filt_a1_loglik_all")
+	if [ -z "$content_filt_a1" ]; then
+		error "$0" ${LINENO} "All alleles seems to have score of zero in $a1_loglik_all"
+		exit 1
+	fi
+
 	second_allele_calculations "$race" "$filt_a1_loglik_all" "$hla_ids_file" \
 		"$freq_file" "$a1_dir" "$a2_dir" > "$a2_log_file" 
 
@@ -163,7 +181,9 @@ if [ ! -f "$a2_loglik_all" ]; then
 
 	find "$a2_dir" -name "*.lik2" | \
 		awk '{n=split($1, a, "/"); gsub(/\.lik2/, "", a[n]); print a[n];}' | \
-		xargs -P"$nproc" -I{} bash -c "tail -1 ${a2_dir}/{}.lik2 | cut -f2 | paste <(echo {}) - >> $a2_loglik_all"
+		xargs -P"$nproc" -I{} bash -c "tail -1 ${a2_dir}/{}.lik2 \\
+			| cut -f2 \\
+			| paste <(echo {}) - >> $a2_loglik_all"
 	info "$0" ${LINENO} "Calculating likelihood score for the second HLA allele [DONE]" 
 else
 	info "$0" ${LINENO} "Previous calculation for the second HLA allele exists. Skipping..." 
