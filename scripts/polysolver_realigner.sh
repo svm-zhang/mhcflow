@@ -18,7 +18,7 @@ EO
 	cat << EO | column -s\& -t
 	-b or --bam    & Specify the path to the BAM file [Required]	
 	-t or --tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
-	--nv_idx    & Specify the Novoalign HLA indexed file, e.g. abc_complete.nix [Required]
+	--hla_ref    & Specify the Novoalign HLA indexed file, e.g. abc_complete.nix [Required]
 	--sample    & Specify the sample name [Required]
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	-o or --out    & Specify the path to the reaglined BAM file [Required]
@@ -30,9 +30,8 @@ EO
 bam=
 sample=
 tag_file=
-nv_idx=
+hla_ref=
 hla_bed=
-out=
 outdir=
 nproc=8
 
@@ -51,14 +50,12 @@ while [ $# -gt 0 ]; do
 			shift; bam=$(parse_path "$1");;
 		-t|--tag)
 			shift; tag_file=$(parse_path "$1");;
-		--nv_idx)
-			shift; nv_idx=$(parse_path "$1");;
+		--hla_ref)
+			shift; hla_ref=$(parse_path "$1");;
 		--sample)
 			shift; sample="$1";;
 		--bed)
 			shift; hla_bed=$(parse_path "$1");;
-		-o|--out)
-			shift; out="$1";;
 		--outdir)
 			shift; outdir="$1";;
 		-p|--nproc)
@@ -91,8 +88,8 @@ if [ -z "$tag_file" ]; then
 	exit 1
 fi
 
-if [ -z "$nv_idx" ]; then
-	error "$0" ${LINENO} "polysolver requires the Novoalign HLA index, such as abc_complete.nix" 
+if [ -z "$hla_ref" ]; then
+	error "$0" "$LINENO" "polysolver requires the Novoalign HLA fasta, such as abc_complete.fasta"
 	usage
 	exit 1
 fi
@@ -114,6 +111,8 @@ if [ -f "${done}" ]; then
 	info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 	exit 0
 fi
+hla_ref_nix="${hla_ref%.*}.nix"
+check_file_exists "$hla_ref_nix"
 
 # getting matching tag sequences
 info "$0" ${LINENO} "Fish reads with exact TAG sequences from BAM" 
@@ -224,7 +223,7 @@ if [ ! -f "$novo_done" ] || [ ! -f "$raw_bam" ]; then
 	find "$split_fq_dir" -name "*.R1.fastq" | \
 		awk '{n=split($1, a, "/"); print a[n]}' | \
 		sed 's/\.R1\.fastq//g' | \
-		xargs -P"$nproc" -I{} bash -c "novoalign -d ${nv_idx} -F STDFQ -R 0 -r All -o SAM -o FullNW -f ${split_fq_dir}/{}.R1.fastq ${split_fq_dir}/{}.R2.fastq 2>${split_log_dir}/${sample}.nv.{}.log | samtools view -bh -o ${split_bam_dir}/${sample}.{}.bam  && touch ${split_log_dir}/${sample}.{}.done"
+		xargs -P"$nproc" -I{} bash -c "novoalign -d ${hla_ref_nix} -F STDFQ -R 0 -r All -o SAM -o FullNW -f ${split_fq_dir}/{}.R1.fastq ${split_fq_dir}/{}.R2.fastq 2>${split_log_dir}/${sample}.nv.{}.log | samtools view -bh -o ${split_bam_dir}/${sample}.{}.bam  && touch ${split_log_dir}/${sample}.{}.done"
 
 	info "$0" ${LINENO} "Concatenate individual split BAM files"
 	list_bams_to_cat="$split_bam_dir/.bams_to_cat.list.txt"
