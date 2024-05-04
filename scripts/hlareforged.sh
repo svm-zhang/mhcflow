@@ -35,9 +35,8 @@ outdir=
 mdup_ram=8
 nproc=8
 nproc_per_job=2
+realigner="hlareforged"
 realn_only=false
-overwrite=false
-no_clean=false
 
 if [ "$#" -le 1 ]; then
 	usage
@@ -68,10 +67,6 @@ while [ $# -gt 0 ]; do
     shift; mdup_ram="$1" ;;
 	--realn_only)
 		realn_only=true;;
-	--overwrite)
-		overwrite=true ;;
-	--no_clean)
-		no_clean=true ;;
 	--)
 		shift; break;;
 	*)
@@ -190,6 +185,8 @@ cmd=(
   "$hla_ref"
   "--outdir"
   "$finalizer_dir"
+	"--realigner"
+	"$realigner"
   "--nproc"
   "$nproc"
   "--mdup_ram"
