@@ -136,7 +136,6 @@ outdir=$( make_dir "$outdir" )
 realn_bam="$outdir/$sample.hla.realigner.bam"
 donefile="$outdir/$sample.hla.realigner.done"
 runtime_file="$outdir/$sample.realigner.runtime.tsv"
-split_runtime_file="$outdir/$sample.split2.runtime.tsv"
 if [ "$overwrite" = true ];
 then
 	rm -f "$realn_bam" "$donefile"
@@ -156,9 +155,10 @@ splits_dir="$outdir/splits"
 splits_dir=$( make_dir "$splits_dir" )
 run_seqkit_split2 "$r1" "$r2" "$splits_dir" "$nproc"
 info "$0" "$LINENO" "Split Fastq file to prepare for razerS3 realignment [DONE]"
+fq_size=$( du -bs "$r1" | awk '{print $1/2^30}' )
 end_time=$(date +%s)
-runtime=$(( "$end_time" - "$start_time" ))
-echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$split_runtime_file"
+split_runtime=$(( end_time - start_time ))
+split_runtime=$( date -u -d @"$split_runtime" +'%M.%S')
 
 # 1.2 run razerS3 realignment on each individually split fastq files
 info "$0" "$LINENO" "Fish HLA reads using razerS3 realignment"
@@ -188,6 +188,8 @@ info "$0" "$LINENO" "Pair fished reads [DONE]"
 
 # --no_gunzip
 # two-layers of if... not pretty
+# collect the number of fished reads
+fisher_stat_file="$outdir/$sample.fisher.stat.tsv"
 if [ "$no_gunzip" = false ]; then
 	info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign"
 	gunzip_donefile="$pair_dir/log/gunzip.done"
@@ -199,9 +201,17 @@ if [ "$no_gunzip" = false ]; then
 		fi
 		echo "${paired_fq_files[@]}" | \
 			xargs -P"$nproc" -I{} gunzip {}
+		paired_fq_files=$( find_files_on_pattern "$pair_dir" "*.razers3.fastq")
+		n_fished_reads=$( echo "$paired_fq_files" \
+			| xargs -P"$nproc" -I{} awk '(NR % 4 == 1)' {} \
+			| wc -l)
+		printf "%s\t%s\n" "SampleID" "NumFished" > "$fisher_stat_file"
+		printf "%s\t%s\n" "$sample" "$n_fished_reads" >> "$fisher_stat_file"
 		info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign [DONE]"
 		touch "$gunzip_donefile"
 	else
+		# FIXME: need to implement the same thing to get n_fished reads
+		# from gz... need a func to avoid dup
 		info "$0" "$LINENO" "Paired reads were already gunzipped previously"
 	fi
 fi
@@ -217,7 +227,7 @@ if [ "$no_gunzip" = false ]; then
 else
 	fq_search_regex=".part_*razers3.fastq.gz"
 fi
-run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$hla_ref_nix" "$nproc"
+run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$sample" "$hla_ref_nix" "$nproc"
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
 
 # 1.5 concatenate individual bam files to get the merged realigned BAM
@@ -234,8 +244,16 @@ info "$0" ${LINENO} "Post-process realigned BAM file [DONE]"
 info "$0" ${LINENO} "Run Polysolver HLA realigner [DONE]" 
 
 end_time=$(date +%s)
-runtime=$(( "$end_time" - "$start_time" ))
-echo -e "${sample}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "$runtime_file" 
+runtime=$(( end_time - start_time ))
+runtime=$( date -u -d @"$runtime" +'%M.%S')
+printf "%s\t%s\t%s\t%s\n" \
+	"SampleID" "InputSize" "SplitterTime" "RealignerTime" > "$runtime_file"
+printf "%s\t%s\t%s\t%s\n" \
+	"$sample" \
+	"$fq_size" \
+	"${split_runtime}m" \
+	"${runtime}m" \
+	>> "$runtime_file"
 
 # the paired fastq files are still useful for hlafinalizer.sh
 rm -rf "$splits_dir" "$razer_dir" "$bam2fq_dir" "$novo_dir"
