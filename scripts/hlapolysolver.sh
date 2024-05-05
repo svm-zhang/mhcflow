@@ -78,8 +78,6 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-echo "i am here"
-
 # 1.1 run realigner
 #outdir=${out_bam%/*}
 outdir=$( make_dir "$outdir" )
