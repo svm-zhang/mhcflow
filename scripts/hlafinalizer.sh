@@ -103,8 +103,7 @@ hlatypelist_file="$outdir/.$sample.hlatypelist.txt"
 tail -n +2 "$typing_res" | cut -d $'\t' -f 2- | sed 's/\t/\n/g' > "$hlatypelist_file" 
 nexpect=$( sort "$hlatypelist_file" | uniq | wc -l )
 sample_hla_ref="$outdir/$sample.hla.fasta"
-if [ ! -f "$sample_hla_ref" ]; then
-
+if [ ! -f "$sample_hla_ref" ] || [ ! -s "$sample_hla_ref" ]; then
 	seqkit_grep_log="$logdir/$sample.seqkit_grep.log"
 	seqkit grep -f "$hlatypelist_file" -o "$sample_hla_ref" "$hla_ref" >"$seqkit_grep_log" 2>&1 \
 		|| die "$0" "$LINENO" "Failed to grep sequences of typed HLA alleles"
@@ -114,12 +113,13 @@ fi
 
 # check if Fasta is empty
 if [ ! -s "$sample_hla_ref" ]; then
-	die "$1" "$LINENO" "Failed to extract any sequences in ${sample_hla_ref##*/}"
+	die "$0" "$LINENO" "Failed to extract any sequences in ${sample_hla_ref##*/}"
 fi
 
 # check if sequences from 6 alleles were generated
 nseq=$( grep -c ">" "$sample_hla_ref" )
 if [ "$nseq" -ne "$nexpect" ]; then
+	rm -f "$sample_hla_ref"
 	die "$0" "$LINENO" "Expect to extract $nexpect alleles, but got $nseq"
 fi
 info "$0" "$LINENO" "Get sample-level HLA reference sequence [DONE]"
@@ -155,7 +155,7 @@ if [ ! -f "$novodonefile" ] || [ ! -f "$realn_bam" ]; then
 	novo_dir="$outdir/novoalign"
 	novo_dir=$( make_dir "$novo_dir" )
 	info "$0" "$LINENO" "Check if intermediate paired reads from realigner exist"
-	run_novoalign_batch "$fq_dir" "$novo_dir" "$fq_search_regex" "$sample_hla_ref_nix" "$nproc"
+	run_novoalign_batch "$fq_dir" "$novo_dir" "$fq_search_regex" "$sample" "$sample_hla_ref_nix" "$nproc"
 
 	# 1.4 concat bam file
 	info "$0" ${LINENO} "Concatenate individually novoaligned BAM files"
