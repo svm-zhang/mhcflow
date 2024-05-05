@@ -36,7 +36,6 @@ outdir=
 nproc=8
 nproc_per_job=2
 overwrite=false
-no_gunzip=false
 
 if [ "$#" -le 1 ]; then
 	usage
@@ -76,9 +75,6 @@ while [ $# -gt 0 ]; do
 	-p | --nproc_per_job)
 		shift
 		nproc_per_job="$1"
-		;;
-	--no_gunzip)
-		no_gunzip=true
 		;;
 	--overwrite)
 		overwrite=true
@@ -190,43 +186,31 @@ info "$0" "$LINENO" "Pair fished reads [DONE]"
 # two-layers of if... not pretty
 # collect the number of fished reads
 fisher_stat_file="$outdir/$sample.fisher.stat.tsv"
-if [ "$no_gunzip" = false ]; then
-	info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign"
-	gunzip_donefile="$pair_dir/log/gunzip.done"
-	if [ ! -f "$gunzip_donefile" ]; then
-		paired_fq_files=$( find_files_on_pattern "$pair_dir" "*.razers3.fastq.gz")
-		if [ -z "$paired_fq_files" ]; then
-			error "$0" "$LINENO" "Failed to find any paired fastq.gz for gunzip"
-			exit 1
-		fi
-		echo "${paired_fq_files[@]}" | \
-			xargs -P"$nproc" -I{} gunzip {}
-		paired_fq_files=$( find_files_on_pattern "$pair_dir" "*.razers3.fastq")
-		n_fished_reads=$( echo "$paired_fq_files" \
-			| xargs -P"$nproc" -I{} awk '(NR % 4 == 1)' {} \
-			| wc -l)
-		printf "%s\t%s\n" "SampleID" "NumFished" > "$fisher_stat_file"
-		printf "%s\t%s\n" "$sample" "$n_fished_reads" >> "$fisher_stat_file"
-		info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign [DONE]"
-		touch "$gunzip_donefile"
-	else
-		# FIXME: need to implement the same thing to get n_fished reads
-		# from gz... need a func to avoid dup
-		info "$0" "$LINENO" "Paired reads were already gunzipped previously"
+info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign"
+gunzip_donefile="$pair_dir/log/gunzip.done"
+if [ ! -f "$gunzip_donefile" ]; then
+	paired_fq_files=$( find_files_on_pattern "$pair_dir" "*.razers3.fastq.gz")
+	if [ -z "$paired_fq_files" ]; then
+		error "$0" "$LINENO" "Failed to find any paired fastq.gz for gunzip"
+		exit 1
 	fi
+	echo "${paired_fq_files[@]}" | \
+		xargs -P"$nproc" -I{} gunzip {}
+	paired_fq_files=$( find_files_on_pattern "$pair_dir" "*.razers3.fastq")
+	n_fished_reads=$( echo "$paired_fq_files" \
+		| xargs -P"$nproc" -I{} awk '(NR % 4 == 1)' {} \
+		| wc -l)
+	printf "%s\t%s\n" "SampleID" "NumFished" > "$fisher_stat_file"
+	printf "%s\t%s\n" "$sample" "$n_fished_reads" >> "$fisher_stat_file"
+	info "$0" "$LINENO" "Gunzipping paired reads prior to Novoalign [DONE]"
+	touch "$gunzip_donefile"
 fi
 
 # 1.5 realign fished reads using novoalign
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign"
 novo_dir="$outdir/novoalign"
 novo_dir=$( make_dir "$novo_dir" )
-fq_search_regex=
-# when no need for gunzipping, we use the fastq.gz as pattern
-if [ "$no_gunzip" = false ]; then
-	fq_search_regex=".part_*razers3.fastq"
-else
-	fq_search_regex=".part_*razers3.fastq.gz"
-fi
+fq_search_regex=".part_*razers3.fastq"
 run_novoalign_batch "$pair_dir" "$novo_dir" "$fq_search_regex" "$sample" "$hla_ref_nix" "$nproc"
 info "$0" "$LINENO" "Realign paired reads to HLA using Novoalign [DONE]"
 
