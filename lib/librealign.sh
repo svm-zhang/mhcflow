@@ -508,8 +508,9 @@ function run_novoalign_batch () {
   local indir="$1"
   local outdir="$2"
   local pattern="$3"
-  local hla_ref_nix="$4"
-  local nproc="$5"
+  local sample="$4"
+  local hla_ref_nix="$5"
+  local nproc="$6"
 
   if [ -z "$indir" ];
   then
@@ -535,15 +536,16 @@ function run_novoalign_batch () {
   paired_input_str=$(make_paired_r1_r2_str "$indir" "$pattern")
 
   echo "$paired_input_str" | \
-    xargs -P"$nproc" -I{} bash -c 'run_novoalign "$@" || exit 255' "_" "{}" "$hla_ref_nix" "$outdir"
+    xargs -P"$nproc" -I{} bash -c 'run_novoalign "$@" || exit 255' "_" "{}" "$sample" "$hla_ref_nix" "$outdir"
 
   touch "$donefile"
 }
 
 function run_novoalign () {
   local reads="$1"
-  local nix="$2"
-  local outdir="$3"
+  local sample="$2"
+  local nix="$3"
+  local outdir="$4"
 
   IFS="," read -r r1 r2 <<< "$reads"
 
@@ -563,7 +565,9 @@ function run_novoalign () {
 
   info "${FUNCNAME[0]}" "$LINENO" "Run Novoalign on ${r1##*/} ${r2##*/}"
   local program="novoalign"
-  local cmdArgs=("-F" "STDFQ" "-R" "0" "-r" "All" "-o" "SAM" "-o" "FullNW")
+  rg_str="@RG\tID:${sample}\tSM:${sample}"
+  local cmdArgs=(
+    "-F" "STDFQ" "-R" "0" "-r" "All" "-o" "FullNW" "-o" "SAM" "$rg_str")
   local novocmd
   novocmd=(
     "$program"  
@@ -586,7 +590,7 @@ function run_novoalign () {
   if ! "${novocmd[@]}" 2>"$logfile" | "${samtools_cmd[@]}" >/dev/null 2>&1;
   then
     error "${FUNCNAME[0]}" "$LINENO" "Failed to run novoalign command"
-    error "${FUNCNAME[0]}" "$LINENO" "Please check command: ${cmd[*]}"
+    error "${FUNCNAME[0]}" "$LINENO" "Please check log file: $logfile"
     touch "$failfile"
     exit 255
   fi
