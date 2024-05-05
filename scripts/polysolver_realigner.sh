@@ -187,6 +187,10 @@ n_fished_reads=$( wc -l < "$hla_read_merged_ids" )
 if(( "$n_fished_reads" == 0 )); then
 	die "$0" "$LINENO" "Fished no reads to continue. Exit"
 fi
+# collect the number of fished reads
+fisher_stat_file="$outdir/$sample.fisher.stat.tsv"
+printf "%s\t%s\n" "SampleID" "NumFished" > "$fisher_stat_file"
+printf "%s\t%s\n" "$sample" "$n_fished_reads" >> "$fisher_stat_file"
 
 merged_R1="${outdir}/${sample}.merged.R1.fastq"
 merged_R2="${outdir}/${sample}.merged.R2.fastq"
@@ -260,12 +264,15 @@ fi
 info "$0" ${LINENO} "Sort realigned BAM file [DONE]" 
 
 end_time=$(date +%s)
-runtime=$(( "$end_time" - "$start_time" ))
-stat_file="${outdir}/${sample}.realn.stat.tsv"
-echo -e "${sample}\t${bam_size}G\t${n_fished_reads}\t$(date -u -d @"${runtime}" +'%M.%S')m" > "${stat_file}"
-
-#info "$0" "$LINENO" "Clean intermediate results $split_dir"
-#rm -rf "$split_dir"
+runtime=$(( end_time - start_time ))
+runtime=$( date -u -d @"$runtime" +'%M.%S')
+runtime_file="${outdir}/${sample}.realigner.runtime.tsv"
+printf "%s\t%s\t%s\n" "SampleID" "InputSize" "RealignerTime" > "$runtime_file"
+printf "%s\t%s\t%s\n" \
+	"$sample" \
+	"$bam_size" \
+	"${runtime}m" \
+	>> "$runtime_file"
 
 touch "$done"
 
