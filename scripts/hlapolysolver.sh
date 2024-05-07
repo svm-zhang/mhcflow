@@ -67,7 +67,7 @@ while [ $# -gt 0 ]; do
 		-p|--nproc)
 			shift; nproc="$1";;
 		--realn_only)
-			shift; realn_only=true;;
+			realn_only=true;;
 		--)
 			shift; break;;
 		*)
