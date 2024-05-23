@@ -1012,51 +1012,51 @@ sub md_to_match_string { # start sub md_to_match_string
 
 	if($md =~ "MD:Z:0"){
 
-                $md = substr($md,6);
+      $md = substr($md,6);
 
-        } else {
+  } else {
 
-                $md = substr($md,5);
+      $md = substr($md,5);
 
-        }       
+  }       
 
-        while($md =~ /[A-Z]0[A-Z]/){
+	while($md =~ /[A-Z]0[A-Z]/){
 
-                $md =~ s/[A-Z]0[A-Z]/CC/g;
+			$md =~ s/[A-Z]0[A-Z]/CC/g;
 
-        }
+	}
         
-        #print "$md\n";
-        
-        $md =~ s/[A-Z]/C/g;
+	#print "$md\n";
+	
+	$md =~ s/[A-Z]/C/g;
 
-        #print "$md\n";
+	#print "$md\n";
 
-        @f = split(/C/,$md);
+	@f = split(/C/,$md);
 
-        $string="";
+	$string="";
 
-        for($i=0;$i<=$#f;$i++){
+	for($i=0;$i<=$#f;$i++){
 
-                #print "$i\t$f[$i]\n";
+			#print "$i\t$f[$i]\n";
 
-                if($f[$i] eq ""){
+			if($f[$i] eq ""){
 
-                        $string = $string."m";
+					$string = $string."m";
 
-                }else{
+			}else{
 
-                        $string = $string.("M" x $f[$i]);
+					$string = $string.("M" x $f[$i]);
 
-                        $string = $string."m";
+					$string = $string."m";
 
-                }
+			}
 
-                #print "$string\n";
+			#print "$string\n";
 
-        }       
+	}       
 
-        chop($string);
+	chop($string);
 
 	return $string;	
 
