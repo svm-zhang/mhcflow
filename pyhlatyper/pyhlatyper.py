@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from __future__ import annotations
 
 import argparse
@@ -49,6 +51,15 @@ def parse_cmd() -> argparse.ArgumentParser:
 def get_alleles(bam: str) -> list(str):
     bamf = pysam.AlignmentFile(bam, "rb")
     return bamf.references
+
+
+def get_rg(bam: str) -> dict(str, str):
+    bamh = pysam.AlignmentFile(bam, "rb")
+    rg = bamh.header.get("RG", None)
+    if rg is None:
+        raise ValueError("[ERROR] Found no RG information in BAM")
+
+    return rg[0]
 
 
 def parse_cigar(cigar_str: str):
@@ -150,14 +161,14 @@ def extract_alignments(
     res_df = res_df.filter(pl.col("n") == 2)
     res_df = res_df.drop("n")
     # FIXME: need to add frequency prior to the log-liklihood score
-    res_df = res_df.groupby("ids").agg(pl.col("scores").sum())
+    res_df = res_df.group_by("ids").agg(pl.col("scores").sum())
     res_df = res_df.with_columns(allele=pl.lit(allele), gene=pl.lit(hla_gene))
     print(allele)
     return res_df
 
 
 def get_winners(allele_scores: pl.DataFrame) -> pl.DataFrame:
-    tot_scores = allele_scores.groupby(["allele", "gene"]).agg(
+    tot_scores = allele_scores.group_by(["allele", "gene"]).agg(
         pl.col("scores").sum()
     )
     winners = tot_scores.filter(
@@ -187,13 +198,18 @@ def main():
     parser = parse_cmd()
     args = parser.parse_args()
 
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
+
     freq_df = pl.read_csv(args.freq, separator="\t")
 
+    rg = get_rg(bam=args.bam)
+    sid = rg.get("SM")
     alleles = get_alleles(bam=args.bam)
     alleles_df = pl.DataFrame({"Allele": alleles})
     alleles_df = alleles_df.with_columns(
         pl.col("Allele")
-        .apply(extract_supertype_from_allele)
+        .map_elements(extract_supertype_from_allele, return_dtype=pl.String)
         .alias("SuperType")
     )
     alleles_df = alleles_df.join(
@@ -201,8 +217,8 @@ def main():
     )
     alleles = alleles_df["Allele"].to_list()
 
-    out_a1 = f"{args.outdir}/test.a1.tsv"
-    out_a2 = f"{args.outdir}/test.a2.tsv"
+    out_a1 = f"{args.outdir}/{sid}.a1.tsv"
+    out_a2 = f"{args.outdir}/{sid}.a2.tsv"
 
     a1_scores = pl.DataFrame()
     if not os.path.exists(out_a1):
@@ -238,8 +254,12 @@ def main():
 
     a2_scores = pl.read_csv(out_a2, separator="\t")
     a2_winners = get_winners(allele_scores=a2_scores)
-    print(a1_winners)
-    print(a2_winners)
+
+    hla_res = f"{args.outdir}/{sid}.hlatyping.res.tsv"
+    hla_res_df = pl.concat([a1_winners, a2_winners])
+    hla_res_df = hla_res_df.with_columns(sample=pl.lit(sid)).sort(by="allele")
+    print(hla_res_df)
+    hla_res_df.write_csv(hla_res, separator="\t")
 
 
 if __name__ == "__main__":
