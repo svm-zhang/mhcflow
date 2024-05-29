@@ -1,0 +1,49 @@
+context:
+  version: "0.1"
+  name: polysolverM
+
+package:
+  name: "{{ name }}"
+  version: "{{ version }}"
+
+source:
+  - path: ./scripts
+  - path: ./pyhlatyper
+
+build:
+  number: 1
+  string: "stable"
+  skip:
+    - win
+
+requirements:
+  build:
+    - python >=3.8
+  host:
+    - python >=3.8
+  run:
+    - python >=3.8
+    - pysam
+    - polars
+    - samtools >=1.13
+    - picard
+    - razers3
+    - seqkit
+
+test:
+  exists:
+    bin:
+      - samtools
+      - razers3
+      - seqkit
+      - picard
+      - hlareforged
+      - hlatyper
+      - hlafinalizer
+      - hlapolysolver
+      - polysolver_realigner
+      - pyhlatyper
+
+extra:
+  maintainers:
+    - Simo V. Zhang (svm.zhang@gmail.com)
