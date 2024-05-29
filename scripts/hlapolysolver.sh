@@ -116,26 +116,38 @@ if [ -z "$realn_bam" ]; then
 fi
 typer_dir="${outdir}/typer"
 cmd=(
-  "hlatyper"
-  "--sample"
-  "$sample"
-  "--bam"
-  "$realn_bam"
-  "--freq"
-  "$freq_file"
-  "--race"
-  "$race"
-  "--outdir"
-  "$typer_dir"
-  "--nproc"
-  "$nproc"
+	"pyhlatyper"
+	"--bam"
+	"$realn_bam"
+	"--freq"
+	"$freq_file"
+	"--race"
+	"Unknown"
+	"--outdir"
+	"$typer_dir"
 )
+#cmd=(
+#  "hlatyper"
+#  "--sample"
+#  "$sample"
+#  "--bam"
+#  "$realn_bam"
+#  "--freq"
+#  "$freq_file"
+#  "--race"
+#  "$race"
+#  "--outdir"
+#  "$typer_dir"
+#  "--nproc"
+#  "$nproc"
+#)
 if ! "${cmd[@]}"; then
   die "$0" "$LINENO" "Failed to run hlatyper. Exit"
 fi
 
 # 1.3
-typeres=$( find "$typer_dir" -name "${sample}.hla_typing.tsv" )
+typeres=$( find "$typer_dir" -name "${sample}.hlatyping.res.tsv" )
+echo "$typeres"
 if [ -z "$typeres" ]; then
   error "$0" "$LINENO" "Found no HLA typing result"
   exit 1
