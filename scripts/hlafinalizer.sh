@@ -100,7 +100,8 @@ fi
 # 1.1 get sample-level HLA reference based on hlatyping result
 info "$0" "$LINENO" "Get sample-level HLA reference sequence"
 hlatypelist_file="$outdir/.$sample.hlatypelist.txt"
-tail -n +2 "$typing_res" | cut -d $'\t' -f 2- | sed 's/\t/\n/g' > "$hlatypelist_file" 
+#tail -n +3 "$typing_res" | cut -d $'\t' -f 2- | sed 's/\t/\n/g' > "$hlatypelist_file"
+awk '(NR > 1) {print $1}' "$typing_res" > "$hlatypelist_file"
 nexpect=$( sort "$hlatypelist_file" | uniq | wc -l )
 sample_hla_ref="$outdir/$sample.hla.fasta"
 if [ ! -f "$sample_hla_ref" ] || [ ! -s "$sample_hla_ref" ]; then
