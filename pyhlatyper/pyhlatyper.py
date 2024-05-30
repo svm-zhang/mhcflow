@@ -12,6 +12,9 @@ import pysam
 import re
 import sys
 
+from functools import partial
+from multiprocessing import get_context
+
 
 def parse_cmd() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
@@ -43,6 +46,13 @@ def parse_cmd() -> argparse.ArgumentParser:
         type=str,
         required=True,
         help="specify path to output directory",
+    )
+    parser.add_argument(
+        "--nproc",
+        metavar="INT",
+        type=int,
+        default=8,
+        help="specify # processes to use (8)",
     )
 
     return parser
@@ -120,7 +130,7 @@ def extract_supertype_from_allele(allele: str) -> str:
 
 
 def extract_alignments(
-    bam: str, allele: str, freq_df: pl.DataFrame
+    allele: str, bam: str, freq_df: pl.DataFrame
 ) -> pl.DataFrame | None:
     hla_gene = extract_gene_from_allele(allele)
     bamf = pysam.AlignmentFile(bam, "rb")
@@ -147,7 +157,7 @@ def extract_alignments(
         md = parse_md(md_str=md_str)
 
         score = score_log_liklihood(aln.query_qualities, md)
-        scores += [np.float32(score)]
+        scores += [np.float64(score)]
         ids += [aln.qname]
 
     res_df = pl.DataFrame(
@@ -163,7 +173,6 @@ def extract_alignments(
     # FIXME: need to add frequency prior to the log-liklihood score
     res_df = res_df.group_by("ids").agg(pl.col("scores").sum())
     res_df = res_df.with_columns(allele=pl.lit(allele), gene=pl.lit(hla_gene))
-    print(allele)
     return res_df
 
 
@@ -178,9 +187,35 @@ def get_winners(allele_scores: pl.DataFrame) -> pl.DataFrame:
     return winners
 
 
-def score_second(score_table: pl.DataFrame, a1_winners: pl.DataFrame):
+def score_first(
+    bam: str,
+    alleles: list[str],
+    freq_df: pl.DataFrame,
+    out: str,
+    nproc: int = 8,
+) -> pl.DataFrame:
+    if os.path.exists(out):
+        return pl.read_csv(out, separator="\t")
 
-    score_table = score_table.join(a1_winners, on=["ids", "gene"], how="left")
+    score_tables: list[pl.DataFrame] = []
+    with get_context("spawn").Pool(processes=nproc) as pool:
+        for res in pool.imap_unordered(
+            partial(extract_alignments, bam=bam, freq_df=freq_df), alleles
+        ):
+            if res is None:
+                continue
+            score_tables.append(res)
+    scores = pl.concat([s for s in score_tables])
+    scores.write_csv(out, separator="\t")
+    return scores
+
+
+def score_second_by_gene(
+    gene: str, a1_scores: pl.DataFrame, a1_winners: pl.DataFrame
+) -> pl.DataFrame:
+    a1_winners = a1_winners.filter(pl.col("gene") == gene)
+    a1_scores = a1_scores.filter(pl.col("gene") == gene)
+    score_table = a1_scores.join(a1_winners, on=["ids", "gene"], how="left")
     score_table = score_table.with_columns(
         pl.col("scores_right").fill_null(0.0)
     )
@@ -191,6 +226,39 @@ def score_second(score_table: pl.DataFrame, a1_winners: pl.DataFrame):
         scores=pl.col("scores") * pl.col("factor")
     )
     return score_table
+
+
+def score_second(
+    a1_scores: pl.DataFrame, a1_winners: pl.DataFrame, out: str, nproc: int = 8
+) -> pl.DataFrame:
+    if os.path.exists(out):
+        return pl.read_csv(
+            out,
+            separator="\t",
+        )
+
+    score_tables: list[pl.DataFrame] = []
+    genes = a1_winners["gene"].unique().to_list()
+    # nproc likely more than number of genes, only spawn # procs
+    # based on # genes
+    nproc = min(nproc, len(genes))
+    # I actually dont think need to parallele this
+    # but until that day...
+    with get_context("spawn").Pool(processes=nproc) as pool:
+        for res in pool.imap_unordered(
+            partial(
+                score_second_by_gene,
+                a1_scores=a1_scores,
+                a1_winners=a1_winners,
+            ),
+            genes,
+        ):
+            if res is None:
+                continue
+            score_tables.append(res)
+    a2_scores = pl.concat(score_tables)
+    a2_scores.write_csv(out, separator="\t")
+    return a2_scores
 
 
 def main():
@@ -224,39 +292,23 @@ def main():
     out_a1 = f"{args.outdir}/{sid}.a1.tsv"
     out_a2 = f"{args.outdir}/{sid}.a2.tsv"
 
-    a1_scores = pl.DataFrame()
-    if not os.path.exists(out_a1):
-        print("score first allele")
-        score_tables: list[pl.DataFrame] = []
-        for allele in alleles:
-            score_tables.append(
-                extract_alignments(
-                    bam=args.bam, allele=allele, freq_df=freq_df
-                )
-            )
-        a1_scores = pl.concat([s for s in score_tables if s is not None])
-        a1_scores.write_csv(out_a1, separator="\t")
-
-    a1_scores = pl.read_csv(out_a1, separator="\t")
-
+    a1_scores = score_first(
+        bam=args.bam,
+        alleles=alleles,
+        freq_df=freq_df,
+        out=out_a1,
+        nproc=args.nproc,
+    )
     a1_winners = get_winners(allele_scores=a1_scores)
     winner_scores = a1_scores.join(
         a1_winners, on=["gene", "allele"], how="inner"
     )
-    if not os.path.exists(out_a2):
-        print("score second allele")
-        a2_score_tables: list[pl.DataFrame] = []
-        for gene in a1_winners["gene"].unique().to_list():
-            a2_score_tables.append(
-                score_second(
-                    a1_scores.filter(pl.col("gene") == gene),
-                    winner_scores.filter(pl.col("gene") == gene),
-                )
-            )
-        a2_scores = pl.concat(a2_score_tables)
-        a2_scores.write_csv(out_a2, separator="\t")
-
-    a2_scores = pl.read_csv(out_a2, separator="\t")
+    a2_scores = score_second(
+        a1_scores=a1_scores,
+        a1_winners=winner_scores,
+        out=out_a2,
+        nproc=args.nproc,
+    )
     a2_winners = get_winners(allele_scores=a2_scores)
 
     hla_res = f"{args.outdir}/{sid}.hlatyping.res.tsv"
