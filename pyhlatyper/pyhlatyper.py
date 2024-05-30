@@ -202,6 +202,10 @@ def main():
         os.makedirs(args.outdir)
 
     freq_df = pl.read_csv(args.freq, separator="\t")
+    # remove supertype has all zero pop frequency
+    freq_df = freq_df.filter(
+        pl.fold(0, lambda acc, s: acc + s, pl.all().exclude(pl.String)) > 0.0
+    )
 
     rg = get_rg(bam=args.bam)
     sid = rg.get("SM")
