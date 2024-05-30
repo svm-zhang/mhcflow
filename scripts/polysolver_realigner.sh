@@ -118,6 +118,7 @@ check_file_exists "$hla_ref_nix"
 info "$0" ${LINENO} "Fish reads with exact TAG sequences from BAM" 
 fish_tag_done="${logdir}/${sample}.fish.tag.done"
 tag_read_ids="${outdir}/${sample}.tag.ids"
+echo "$bam"
 bam_size=$( du -bs "$bam" | awk '{print $1/2^30}' )
 if [ -z "$bam_size" ]; then
 	die "$0" "$LINENO" "Failed to obtaint input BAM file size"
@@ -224,11 +225,11 @@ if [ ! -f "$novo_done" ] || [ ! -f "$raw_bam" ]; then
 	# split R1 into individual files
 	split -l "$nreads_per_proc" -d -a 2 --additional-suffix ".R1.fastq" "$merged_R1" "${split_fq_dir}/"
 	split -l "$nreads_per_proc" -d -a 2 --additional-suffix ".R2.fastq" "$merged_R2" "${split_fq_dir}/"
-  rg_str="@RG\tID:${sample}\tSM:${sample}"
+  rg_str="@RG\\tID:${sample}\\tSM:${sample}"
 	find "$split_fq_dir" -name "*.R1.fastq" | \
 		awk '{n=split($1, a, "/"); print a[n]}' | \
 		sed 's/\.R1\.fastq//g' | \
-		xargs -t -P"$nproc" -I{} bash -c "novoalign -d ${hla_ref_nix} -F STDFQ -R 0 -r All -o SAM ${rg_str} -o FullNW -f ${split_fq_dir}/{}.R1.fastq ${split_fq_dir}/{}.R2.fastq 2>${split_log_dir}/${sample}.nv.{}.log | samtools view -bh -o ${split_bam_dir}/${sample}.{}.bam  && touch ${split_log_dir}/${sample}.{}.done"
+		xargs -P"$nproc" -I{} bash -c "novoalign -d ${hla_ref_nix} -F STDFQ -R 1 -r All -o SAM \"${rg_str}\" -o FullNW -f ${split_fq_dir}/{}.R1.fastq ${split_fq_dir}/{}.R2.fastq 2>${split_log_dir}/${sample}.nv.{}.log | samtools view -bh -o ${split_bam_dir}/${sample}.{}.bam  && touch ${split_log_dir}/${sample}.{}.done"
 
 	info "$0" ${LINENO} "Concatenate individual split BAM files"
 	list_bams_to_cat="$split_bam_dir/.bams_to_cat.list.txt"
