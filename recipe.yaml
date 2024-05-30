@@ -1,6 +1,6 @@
 context:
   version: "0.1"
-  name: polysolverM
+  name: polysolver_modern 
 
 package:
   name: "{{ name }}"
@@ -17,12 +17,11 @@ build:
     - win
 
 requirements:
-  build:
-    - python >=3.8
   host:
     - python >=3.8
   run:
     - python >=3.8
+    - numpy
     - pysam
     - polars
     - samtools >=1.13
