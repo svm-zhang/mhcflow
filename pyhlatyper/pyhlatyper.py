@@ -14,6 +14,7 @@ import sys
 
 from functools import partial
 from multiprocessing import get_context
+from tqdm import tqdm
 
 
 def parse_cmd() -> argparse.ArgumentParser:
@@ -199,12 +200,19 @@ def score_first(
 
     score_tables: list[pl.DataFrame] = []
     with get_context("spawn").Pool(processes=nproc) as pool:
-        for res in pool.imap_unordered(
-            partial(extract_alignments, bam=bam, freq_df=freq_df), alleles
-        ):
-            if res is None:
-                continue
-            score_tables.append(res)
+        with tqdm(
+            total=len(alleles), desc="extract_aln", ncols=100, leave=False
+        ) as pbar:
+            for res in tqdm(
+                pool.imap_unordered(
+                    partial(extract_alignments, bam=bam, freq_df=freq_df),
+                    alleles,
+                )
+            ):
+                pbar.update()
+                if res is None:
+                    continue
+                score_tables.append(res)
     scores = pl.concat([s for s in score_tables])
     scores.write_csv(out, separator="\t")
     return scores
