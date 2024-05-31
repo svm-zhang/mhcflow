@@ -189,8 +189,7 @@ def get_winners(allele_scores: pl.DataFrame) -> pl.DataFrame:
     # when there is a tie in scores for each gene group,
     # select allele with least string value lexicographically
     # e.g. hla_a_26_01_24 and hla_a_26_01_01 (latter selected)
-    winners = winners.sort(by="gene").unique(subset="gene")
-    print(winners)
+    winners = winners.sort(by=["allele"]).unique(subset="gene", keep="first")
     winners = winners.rename({"scores": "tot_scores"})
     return winners
 
