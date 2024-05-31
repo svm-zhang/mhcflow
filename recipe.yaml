@@ -24,16 +24,15 @@ requirements:
     - numpy
     - pysam
     - polars
+    - tqdm
     - samtools >=1.13
     - picard
-    - razers3
     - seqkit
 
 test:
   exists:
     bin:
       - samtools
-      - razers3
       - seqkit
       - picard
       - hlareforged
