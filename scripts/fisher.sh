@@ -8,17 +8,38 @@ SRC_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
 source "$LIBCOMMON"
 
-function polysolver_faster () {
+function fish () {
   local bam="$1"
   local tag_file="$2"
 	local hla_bed="$3"
 	local out_fished_rids="$4"
+	local mode="$5"
 
 	local outdir="${out_fished_rids%/*}"
-  info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode"
 
+  local fished_tag_rids="${outdir}/fished.tag.ids"
+	if [ "$mode" = "polysolver_faster" ]; then
+		fish_tag_faster "$bam" "$tag_file" "$fished_tag_rids"
+	fi
+
+  local fished_hla_rids="${outdir}/fished.hla.aln.ids"
+	fish_from_hla_aln "$bam" "$hla_bed" "$fished_hla_rids"
+
+	cat "$fished_hla_rids" "$fished_tag_rids" \
+		| sort \
+		| uniq > "$out_fished_rids" \
+		|| die "$0" "$LINENO" "Failed to merge TAG and HLA read IDs"
+
+	rm -f "$fished_hla_rids" "$fished_tag_rids"
+}
+
+function fish_tag_faster () {
+  local bam="$1"
+  local tag_file="$2"
+	local out="$3"
+
+  info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode"
 	info "$0" ${LINENO} "Fish TAG reads from alignments on chromosome 6"
-  local fished_chr6_rids="${outdir}/chr6.tag.ids"
 	local chrom6=""
 	chrom6=$( samtools view -H "$bam" \
 		| grep "SN:6\|SN:chr6\|SN:NC000006\|SN:CM000668" \
@@ -31,30 +52,18 @@ function polysolver_faster () {
 	samtools view -@"$nproc" "$bam" "$chrom6" \
 		| cut -f1,10 \
 		| grep -f "$tag_file" \
-		| cut -f1 > "$fished_chr6_rids" \
+		| cut -f1 > "$out" \
     || die "$0" "$LINENO" "Failed to fish reads from alignments on chromosome 6"
 
 	info "$0" ${LINENO} "Fish TAG reads from unplaced alignments"
-  local fished_unmapped_rids="${outdir}/unmapped.tag.ids"
 	#awk 'BEGIN{print "4\n8\n"}' | \
 	#	xargs -I{} bash -c "samtools view -@$nproc -f{} -F2 $bam | cut -f1,10 | grep -f $tag_file | cut -f1 >> $fished_unmapped_rids"
 	samtools view -@"$nproc" -f4 "$bam" \
 		| cut -f1,10 \
 		| grep -f "$tag_file" \
-		| cut -f1 >> "$fished_unmapped_rids"
-
-  local fished_hla_rids="${outdir}/fished.hla.aln.ids"
-	fish_from_hla_aln "$bam" "$hla_bed" "$fished_hla_rids"
-  info "$0" ${LINENO} "Get reads mapped to HLA regions in BAM [DONE]" 
-
-	cat "$fished_hla_rids" "$fished_unmapped_rids" "$fished_chr6_rids" \
-		| sort \
-		| uniq > "$out_fished_rids" \
-		|| die "$0" "$LINENO" "Failed to merge TAG and HLA read IDs"
-
-	rm -f "$fished_chr6_rids" "$fished_unmapped_rids" "$fished_hla_rids"
+		| cut -f1 >> "$out"
+  info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode [DONE]"
 }
-
 
 function fish_from_hla_aln () {
   local bam="$1"
@@ -69,6 +78,7 @@ function fish_from_hla_aln () {
     | sort \
     | uniq > "$out_fished_hla_rids" \
     || die "$0" "$LINENO" "Failed to get reads mapped to HLA regions in BAM"
+  info "$0" ${LINENO} "Get reads mapped to HLA regions in BAM [DONE]" 
 }
 
 function fisher_usage () {
@@ -174,9 +184,7 @@ function fisherman () {
 
 	info "$0" ${LINENO} "Start fishing" 
 	local out_fished_rids="${outdir}/${sample}.fished.ids"
-	if [ "$mode" = "polysolver_faster" ]; then
-		polysolver_faster "$bam" "$tag_file" "$hla_bed" "$out_fished_rids"
-	fi
+	fish "$bam" "$tag_file" "$hla_bed" "$out_fished_rids" "$mode"
 	if [ -z "$out_fished_rids" ] || [ ! -f "$out_fished_rids" ]; then
 		die "$0" "$LINENO" "Failed to find fished read id file $out_fished_rids"
 	fi
