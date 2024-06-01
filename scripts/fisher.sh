@@ -244,7 +244,7 @@ function fisherman () {
 	if [ ! -f "$fished_R1" ] || [ ! -f "$fished_R2" ]; then
 		die "$0" "$LINENO" "Failed to find either $fished_R1 or $fished_R2 fastq file"
 	fi
-	echo -e "$fished_R1\n$fished_R2" > "$out"
+	echo -e "$fished_R1\t$fished_R2" > "$out"
 
 	local end_time
 	local runtime
