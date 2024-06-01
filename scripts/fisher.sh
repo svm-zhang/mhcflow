@@ -16,11 +16,12 @@ function fish () {
 	local mode="$5"
 
 	local outdir="${out_fished_rids%/*}"
-
   local fished_tag_rids="${outdir}/fished.tag.ids"
-	if [ "$mode" = "polysolver_faster" ]; then
-		fish_tag_faster "$bam" "$tag_file" "$fished_tag_rids"
-	fi
+	case "$mode" in
+		faster) fish_tag_faster "$bam" "$tag_file" "$fished_tag_rids";;
+		fast) fish_tag_fast "$bam" "$tag_file" "$fished_tag_rids";;
+		*) die "$0" "$LINENO" "Unrecognized fishing mode $mode"
+	esac
 
   local fished_hla_rids="${outdir}/fished.hla.aln.ids"
 	fish_from_hla_aln "$bam" "$hla_bed" "$fished_hla_rids"
@@ -65,6 +66,43 @@ function fish_tag_faster () {
   info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode [DONE]"
 }
 
+function fish_tag_fast () {
+	local bam="$1"
+  local tag_file="$2"
+	local out="$3"
+
+  info "$0" ${LINENO} "Fish TAG reads from alignments using fast mode"
+	local bam_size=0
+	bam_size=$( du -bs "$bam" | awk '{print $1/2^30}' )
+	if [ -z "$bam_size" ]; then
+		die "$0" "$LINENO" "Failed to obtaint input BAM file size"
+	fi
+	info "$0" ${LINENO} "Obtain input BAM file size: ${bam_size}G" 
+	info "$0" ${LINENO} "Split BAM into parts for faster fishing reads"
+	local outdir="${out%/*}"
+	local split_bam_dir="${outdir}/bams"
+	split_bam_dir=$( make_dir "$split_bam_dir" )
+	bam_size_int=$( printf "%.0f" "$bam_size" )
+	split_size=$(( (bam_size_int+1+nproc-1)/nproc ))
+	info "$0" ${LINENO} "Split BAM file into ${split_size}G each"
+	# split bam files
+	samtools view "$bam" \
+		| cut -f1,10 \
+		| split -C "${split_size}G" -d -a 2 \
+			--additional-suffix ".txt" - "$split_bam_dir/" \
+		|| die "$0" "$LINENO" "Failed to split input bam to parts for fishing tags"
+
+	info "$0" ${LINENO} "Fish reads from each individual split file"
+	find "$split_bam_dir" -name "*.txt" \
+		| sed 's/\.txt//g' \
+		| xargs -P"$nproc" -I{} bash -c "grep -F -f $tag_file {}.txt | cut -f1 >> $out"
+
+	if [ -d "$split_bam_dir" ]; then
+		rm -rf "$split_bam_dir"
+	fi
+  info "$0" ${LINENO} "Fish TAG reads from alignments using fast mode [DONE]"
+}
+
 function fish_from_hla_aln () {
   local bam="$1"
   local hla_bed="$2"
@@ -104,7 +142,7 @@ function fisherman () {
 	local tag_file=
 	local hla_bed=
 	local out=
-	local mode="polysolver_faster"
+	local mode="faster"
 	local nproc=8
 
 	if [ "$#" -le 1 ];
