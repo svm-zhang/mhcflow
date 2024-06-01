@@ -19,7 +19,16 @@ function polysolver_faster () {
 
 	info "$0" ${LINENO} "Fish TAG reads from alignments on chromosome 6"
   local fished_chr6_rids="${outdir}/chr6.tag.ids"
-	samtools view -@"$nproc" "$bam" 6 \
+	local chrom6=""
+	chrom6=$( samtools view -H "$bam" \
+		| grep "SN:6\|SN:chr6\|SN:NC000006\|SN:CM000668" \
+		| cut -f2 \
+		| sed 's/SN://g'
+	)
+	if [ -z "$chrom6" ]; then
+    die "$0" "$LINENO" "Failed to extract ref name for chromosome 6 from header"
+	fi
+	samtools view -@"$nproc" "$bam" "$chrom6" \
 		| cut -f1,10 \
 		| grep -f "$tag_file" \
 		| cut -f1 > "$fished_chr6_rids" \
