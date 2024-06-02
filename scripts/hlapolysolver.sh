@@ -104,14 +104,19 @@ if [ ! -f "$fish_out" ]; then
 fi
 
 # realigner
-realn_dir="$outdir/realigner"
-realn_out="$realn_dir/$sample.hla.realn.so.bam"
-polysolver_realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
-	--sample "$sample" --out "$realn_out" --nproc "$nproc" \
-  || die "$0" "$LINENO" "Failed to run realigner"
+if [ "$realn_only" = false ]; then
+	realn_dir="$outdir/realigner"
+	realn_out="$realn_dir/$sample.hla.realn.so.bam"
+	polysolver_realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
+		--sample "$sample" --out "$realn_out" --nproc "$nproc" \
+		|| die "$0" "$LINENO" "Failed to run realigner"
+else
+	realn_dir="$outdir/finalizer"
+	realn_out="$realn_dir/$sample.hla.realn.ready.bam"
+	polysolver_realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
+		--sample "$sample" --out "$realn_out" --nproc "$nproc" --mdup \
+		|| die "$0" "$LINENO" "Failed to run realigner"
 
-
-if [ "$realn_only" = true ]; then
 	info "$0" "$LINENO" "Realigner-only mode was specified"
 	info "$0" "$LINENO" "Will not continue typing"
 	exit 0
