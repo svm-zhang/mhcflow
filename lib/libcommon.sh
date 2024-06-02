@@ -73,4 +73,4 @@ function run_cmd () {
 
 }
 
-export -f info error parse_path check_file_exists check_dir_exists make_dir run_cmd
+export -f info error die parse_path check_file_exists check_dir_exists make_dir run_cmd
