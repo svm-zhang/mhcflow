@@ -14,10 +14,10 @@ Usage: $program [options]
 Options:
 EO
 	cat << EO | column -s\& -t
+	--sample    & Specify the sample name [Required]
 	-b or --bam    & Specify the path to the BAM file [Required]	
 	-t or --tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
 	--hla_ref    & Specify the Novoalign HLA indexed file, e.g. abc_complete.fasta [Required]
-	--sample    & Specify the sample name [Required]
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	--freq    & Specify the HLA allele population frequency file [Required]
 	--outdir    & Specify the path to output base directory [Required]
@@ -35,7 +35,6 @@ freq_file=
 race="Unknown"
 sample=
 nproc=8
-realigner="polysolver"
 realn_only=false
 
 if [ "$#" -le 1 ]; then
@@ -78,30 +77,35 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-# 1.1 run realigner
-#outdir=${out_bam%/*}
 outdir=$( make_dir "$outdir" )
-realn_dir="${outdir}/realigner"
-cmd=(
-  "polysolver_realigner"
-  "--sample"
-  "$sample"
-  "--bam"
-  "$bam"
-  "--hla_ref"
-  "$hla_ref"
-  "--tag"
-  "$tag_file"
-  "--bed"
-  "$hla_bed"
-  "--outdir"
-  "$realn_dir"
-  "--nproc"
-  "$nproc"
-)
-if ! "${cmd[@]}"; then
-  die "$0" "$LINENO" "Failed to run polysovler_realigner. Exit"
+logdir="$outdir/log"
+logdir=$( make_dir "$logdir" )
+donefile="$logdir/$sample.hlatyping.done"
+
+if [ -f "$donefile" ]; then
+  info "$0" "$LINENO" "Found done file from previous run $donefile"
+  info "$0" "$LINENO" "Remove done file if you want to re-run"
+	exit 0 
 fi
+
+# fishing
+fish_dir="$outdir/fisher"
+fish_out="$fish_dir/$sample.fished.fqs.txt"
+fisher --tag "$tag_file" --bed "$hla_bed" --bam "$bam" \
+	--sample "$sample" --out "$fish_out" --nproc "$nproc" \
+  || die "$0" "$LINENO" "Failed to run fisher"
+
+if [ ! -f "$fish_out" ]; then
+  die "$0" "$LINENO" "Failed to find fisher result $fish_out"
+fi
+
+# realigner
+realn_dir="$outdir/realigner"
+realn_out="$realn_dir/$sample.hla.realn.so.bam"
+polysolver_realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
+	--sample "$sample" --out "$realn_out" --nproc "$nproc" \
+  || die "$0" "$LINENO" "Failed to run realigner"
+
 
 if [ "$realn_only" = true ]; then
 	info "$0" "$LINENO" "Realigner-only mode was specified"
@@ -109,69 +113,35 @@ if [ "$realn_only" = true ]; then
 	exit 0
 fi
 
-# 1.2 run typer
-realn_bam=$( find "$realn_dir" -name "*.hla.realn.so.bam" )
-if [ -z "$realn_bam" ]; then
-  die "$0" "$LINENO" "Failed to find realigned BAM file within $realn_dir"
-fi
-typer_dir="${outdir}/typer"
-cmd=(
-	"pyhlatyper"
-	"--bam"
-	"$realn_bam"
-	"--freq"
-	"$freq_file"
-	"--race"
-	"Unknown"
-	"--outdir"
-	"$typer_dir"
-)
-#cmd=(
-#  "hlatyper"
-#  "--sample"
-#  "$sample"
-#  "--bam"
-#  "$realn_bam"
-#  "--freq"
-#  "$freq_file"
-#  "--race"
-#  "$race"
-#  "--outdir"
-#  "$typer_dir"
-#  "--nproc"
-#  "$nproc"
-#)
-if ! "${cmd[@]}"; then
-  die "$0" "$LINENO" "Failed to run hlatyper. Exit"
+# typer
+if [ ! -f "$realn_out" ]; then
+  die "$0" "$LINENO" "Failed to find realigned BAM file $realn_out"
 fi
 
-# 1.3
-typeres=$( find "$typer_dir" -name "${sample}.hlatyping.res.tsv" )
-echo "$typeres"
-if [ -z "$typeres" ]; then
-  error "$0" "$LINENO" "Found no HLA typing result"
+typer_dir="$outdir/typer"
+typer_out="$typer_dir/$sample.hlatyping.res.tsv"
+pyhlatyper --freq "$freq_file" --race "$race" --out "$typer_out" \
+	--bam "$realn_out" --nproc "$nproc" \
+  || die "$0" "$LINENO" "Failed to run typer."
+if [ ! -f "$typer_out" ]; then
+  error "$0" "$LINENO" "Failed to find typing result $typer_out"
   exit 1
 fi
-cmd=(
-  "hlafinalizer"
-  "--sample"
-  "$sample"
-  "--hla_ref"
-  "$hla_ref"
-  "--realn_dir"
-  "$realn_dir"
-  "--typeres"
-  "$typeres"
-  "--outdir"
-  "$outdir"
-	"--realigner"
-	"$realigner"
-  "--nproc"
-  "$nproc"
-)
 
-if ! "${cmd[@]}"; then
-  die "$0" "$LINENO" "Failed to run hlafinalizer. Exit"
-fi
+# extractor
+final_dir="$outdir/finalizer"
+extract_out="$final_dir/$sample.hla.fasta"
+extract_sample_hlaref --hla_ref "$hla_ref" \
+	--sample "$sample" --typeres "$typer_out" --out "$extract_out" \
+  || die "$0" "$LINENO" "Failed to extract sample HLA ref"
+
+# realigner against the sample hla ref
+final_realn_out="$final_dir/$sample.hla.realn.ready.bam"
+polysolver_realigner --hla_ref "$extract_out" --fqs "$fish_out" \
+	--sample "$sample" --out "$final_realn_out" --nproc "$nproc" \
+  || die "$0" "$LINENO" \
+		"Failed to run realigner on sample HLA ref"
+
+touch "$donefile"
 
 exit 0
