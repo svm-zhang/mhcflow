@@ -133,10 +133,14 @@ function realigner_main () {
 		rm "$realn_input_list"
 	fi
 	for i in $(seq 1 "$nproc"); do
-		find "$split_dir" -name "*00$i*fastq" \
+		find "$split_dir" -name "*part_00$i*fastq" \
 			| sort \
 			| paste -sd " " - >> "$realn_input_list"
 	done
+	awk 'BEGIN{err=0} {if(NF > 2) {err=1}} END{exit err}' \
+		"$realn_input_list" \
+		|| die "$0" "$LINENO" \
+			"Found more than 2 fq files in (some) line(s) in $realn_input_list"
 
 	info "$0" ${LINENO} "Realign reads to HLA using Novoalign"
 	awk '{print}' "$realn_input_list" \
