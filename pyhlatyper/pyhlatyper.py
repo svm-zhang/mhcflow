@@ -10,10 +10,10 @@ import os
 import polars as pl
 import pysam
 import re
-import sys
 
 from functools import partial
 from multiprocessing import get_context
+from pathlib import Path, PosixPath
 from tqdm import tqdm
 
 
@@ -23,14 +23,14 @@ def parse_cmd() -> argparse.ArgumentParser:
     parser.add_argument(
         "--bam",
         metavar="FILE",
-        type=str,
+        type=parse_path,
         required=True,
         help="specify path to BAM file",
     )
     parser.add_argument(
         "--freq",
         metavar="FILE",
-        type=str,
+        type=parse_path,
         required=True,
         help="specify path to HLA frequency file",
     )
@@ -42,11 +42,11 @@ def parse_cmd() -> argparse.ArgumentParser:
         help="specify path to HLA frequency file",
     )
     parser.add_argument(
-        "--outdir",
-        metavar="DIR",
-        type=str,
+        "--out",
+        metavar="FILE",
+        type=parse_path,
         required=True,
-        help="specify path to output directory",
+        help="specify path to output hlatyping result file",
     )
     parser.add_argument(
         "--nproc",
@@ -55,8 +55,55 @@ def parse_cmd() -> argparse.ArgumentParser:
         default=8,
         help="specify # processes to use (8)",
     )
-
     return parser
+
+
+def parse_path(
+    path: Path | str,
+    *,
+    expanduser: bool = True,
+) -> Path:
+    if isinstance(path, Path):
+        p = path
+    elif isinstance(path, str) and (
+        path.startswith("s3:") or path.startswith("gcs:")
+    ):
+        raise ValueError(f"Cloud-based path is not supported: {path}")
+    else:
+        p = Path(path)
+
+    if isinstance(p, PosixPath):
+        if expanduser:
+            p = p.expanduser()
+        p = p.resolve()
+    return p
+
+
+def get_parent_dir(p: Path, level: int = 0) -> Path:
+    parent_dirs = p.parents
+
+    if level > len(parent_dirs):
+        raise ValueError(
+            (
+                f"level {level} cannot beyond the number of logical ancestors "
+                f"of the given path: {len(parent_dirs)}"
+            )
+        )
+    return parent_dirs[level]
+
+
+def make_dir(
+    path: Path,
+    *,
+    mode: int = 511,
+    parents: bool = False,
+    exist_ok: bool = False,
+) -> None:
+    if not isinstance(path, Path):
+        path = parse_path(path)
+
+    if not path.exists():
+        path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
 
 def get_alleles(bam: str) -> list(str):
@@ -280,8 +327,8 @@ def main():
     parser = parse_cmd()
     args = parser.parse_args()
 
-    if not os.path.exists(args.outdir):
-        os.makedirs(args.outdir)
+    outdir = get_parent_dir(args.out)
+    make_dir(outdir)
 
     freq_df = pl.read_csv(args.freq, separator="\t")
     # remove supertype has all zero pop frequency
@@ -303,8 +350,8 @@ def main():
     )
     alleles = alleles_df["Allele"].to_list()
 
-    out_a1 = f"{args.outdir}/{sid}.a1.tsv"
-    out_a2 = f"{args.outdir}/{sid}.a2.tsv"
+    out_a1 = f"{outdir}/{sid}.a1.tsv"
+    out_a2 = f"{outdir}/{sid}.a2.tsv"
 
     a1_scores = score_first(
         bam=args.bam,
@@ -325,7 +372,7 @@ def main():
     )
     a2_winners = get_winners(allele_scores=a2_scores)
 
-    hla_res = f"{args.outdir}/{sid}.hlatyping.res.tsv"
+    hla_res = f"{outdir}/{sid}.hlatyping.res.tsv"
     hla_res_df = pl.concat([a1_winners, a2_winners])
     hla_res_df = hla_res_df.with_columns(sample=pl.lit(sid)).sort(by="allele")
     print(hla_res_df)
