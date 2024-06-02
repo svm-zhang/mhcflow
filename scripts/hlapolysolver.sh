@@ -20,6 +20,7 @@ EO
 	--hla_ref    & Specify the Novoalign HLA indexed file, e.g. abc_complete.fasta [Required]
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	--freq    & Specify the HLA allele population frequency file [Required]
+	--fish_mode    & Specify the mode fisher to use (faster, fast) [faster]
 	--outdir    & Specify the path to output base directory [Required]
 	-r or --race    & Specify the race (Caucasian, Black, Asian, Unknown) [Unknown]
 	--nproc    & Specify the number of CPUs used [8]
@@ -32,6 +33,7 @@ tag_file=
 hla_ref=
 hla_bed=
 freq_file=
+fish_mode="faster"
 race="Unknown"
 sample=
 nproc=8
@@ -57,6 +59,8 @@ while [ $# -gt 0 ]; do
 			shift; hla_ref=$(parse_path "$1");;
 		--bed)
 			shift; hla_bed=$(parse_path "$1");;
+		--fish_mode)
+			shift; fish_mode="$1";;
 		--freq)
 			shift; freq_file=$(parse_path "$1");;
 		--race)
@@ -91,7 +95,7 @@ fi
 # fishing
 fish_dir="$outdir/fisher"
 fish_out="$fish_dir/$sample.fished.fqs.txt"
-fisher --tag "$tag_file" --bed "$hla_bed" --bam "$bam" \
+fisher --mode "$fish_mode" --tag "$tag_file" --bed "$hla_bed" --bam "$bam" \
 	--sample "$sample" --out "$fish_out" --nproc "$nproc" \
   || die "$0" "$LINENO" "Failed to run fisher"
 
