@@ -35,12 +35,11 @@ test:
       - samtools
       - seqkit
       - picard
-      - hlareforged
-      - hlatyper
-      - hlafinalizer
       - hlapolysolver
+      - fisher
       - polysolver_realigner
       - pyhlatyper
+      - extract_sample_hlaref
 
 extra:
   maintainers:
