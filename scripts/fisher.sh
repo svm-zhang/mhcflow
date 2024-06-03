@@ -43,25 +43,24 @@ function fish_tag_faster () {
 	info "$0" ${LINENO} "Fish TAG reads from alignments on chromosome 6"
 	local chrom6=""
 	chrom6=$( samtools view -H "$bam" \
-		| grep "SN:6\|SN:chr6\|SN:NC000006\|SN:CM000668" \
+		| { grep "SN:6\|SN:chr6\|SN:NC000006\|SN:CM000668" || test "$?" = 1; } \
 		| cut -f2 \
-		| sed 's/SN://g'
+		| sed 's/SN://g' \
+    || die "$0" "$LINENO" "Failed to grep chrom6 ref in BAM header"
 	)
 	if [ -z "$chrom6" ]; then
     die "$0" "$LINENO" "Failed to extract ref name for chromosome 6 from header"
 	fi
 	samtools view -@"$nproc" "$bam" "$chrom6" \
 		| cut -f1,10 \
-		| grep -f "$tag_file" \
+		| { grep -F -f "$tag_file" || true; } \
 		| cut -f1 > "$out" \
     || die "$0" "$LINENO" "Failed to fish reads from alignments on chromosome 6"
 
 	info "$0" ${LINENO} "Fish TAG reads from unplaced alignments"
-	#awk 'BEGIN{print "4\n8\n"}' | \
-	#	xargs -I{} bash -c "samtools view -@$nproc -f{} -F2 $bam | cut -f1,10 | grep -f $tag_file | cut -f1 >> $fished_unmapped_rids"
 	samtools view -@"$nproc" -f4 "$bam" \
 		| cut -f1,10 \
-		| grep -f "$tag_file" \
+		| { grep -F -f "$tag_file" || true; } \
 		| cut -f1 >> "$out"
   info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode [DONE]"
 }
