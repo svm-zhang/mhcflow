@@ -165,8 +165,8 @@ def score_log_liklihood(base_qs, md, scale=math.exp(23)):
 
 def extract_gene_from_allele(allele: str) -> str:
     allele = allele.lower()
-    # A*01:01:01, hla_a_01_01_01
-    return re.sub("(\\*|_)*([0-9]+[a-z]*(:|_)*)", "", allele)
+    # A*01:01:01, hla_a_01_01_01, hla_drq1_11_01_01_01
+    return re.sub("(\\*|_)+([0-9]+[a-z]*)", "", allele)
 
 
 def extract_supertype_from_allele(allele: str) -> str:
