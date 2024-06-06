@@ -203,6 +203,9 @@ def extract_alignments(
         md_str = aln.get_tag("MD")
         # md_str = "12G6C7^A5"
         md = parse_md(md_str=md_str)
+        n_mm = len([c for c in md if c.isalpha()])
+        if n_mm > 1:
+            continue
 
         score = score_log_liklihood(aln.query_qualities, md)
         scores += [np.float64(score)]
