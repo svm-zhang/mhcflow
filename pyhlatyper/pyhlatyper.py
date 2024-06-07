@@ -49,6 +49,13 @@ def parse_cmd() -> argparse.ArgumentParser:
         help="specify path to output hlatyping result file",
     )
     parser.add_argument(
+        "--min_ecnt",
+        metavar="INT",
+        type=int,
+        default=999,
+        help="specify minimum # of mm events (999)",
+    )
+    parser.add_argument(
         "--nproc",
         metavar="INT",
         type=int,
@@ -178,7 +185,10 @@ def extract_supertype_from_allele(allele: str) -> str:
 
 
 def extract_alignments(
-    allele: str, bam: str, freq_df: pl.DataFrame
+    allele: str,
+    bam: str,
+    freq_df: pl.DataFrame,
+    min_ecnt: int,
 ) -> pl.DataFrame | None:
     hla_gene = extract_gene_from_allele(allele)
     bamf = pysam.AlignmentFile(bam, "rb")
@@ -204,7 +214,7 @@ def extract_alignments(
         # md_str = "12G6C7^A5"
         md = parse_md(md_str=md_str)
         n_mm = len([c for c in md if c.isalpha()])
-        if n_mm > 1:
+        if n_mm > min_ecnt:
             continue
 
         score = score_log_liklihood(aln.query_qualities, md)
@@ -249,6 +259,7 @@ def score_first(
     alleles: list[str],
     freq_df: pl.DataFrame,
     out: str,
+    min_ecnt: int,
     nproc: int = 8,
 ) -> pl.DataFrame:
     if os.path.exists(out):
@@ -261,7 +272,12 @@ def score_first(
         ) as pbar:
             for res in tqdm(
                 pool.imap_unordered(
-                    partial(extract_alignments, bam=bam, freq_df=freq_df),
+                    partial(
+                        extract_alignments,
+                        bam=bam,
+                        freq_df=freq_df,
+                        min_ecnt=min_ecnt,
+                    ),
                     alleles,
                 )
             ):
@@ -361,6 +377,7 @@ def main():
         alleles=alleles,
         freq_df=freq_df,
         out=out_a1,
+        min_ecnt=args.min_ecnt,
         nproc=args.nproc,
     )
     a1_winners = get_winners(allele_scores=a1_scores)
