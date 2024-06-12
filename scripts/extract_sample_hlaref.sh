@@ -39,16 +39,11 @@ function extractor_main() {
 			usage
 			exit 0
 			;;
-		--sample)
-			shift; sample="$1";;
-		--typeres)
-			shift; typing_res=$(parse_path "$1");;
-		--hla_ref)
-			shift; hla_ref=$(parse_path "$1");;
-		--out)
-			shift; out="$1";;
-		--)
-			shift; break;;
+		--sample) shift; sample="$1";;
+		--typeres) shift; typing_res="$1";;
+		--hla_ref) shift; hla_ref="$1";;
+		--out) shift; out="$1";;
+		--) shift; break;;
 		*)
 			echo "Invalid option: $1" 1>&2
 			usage
@@ -57,6 +52,22 @@ function extractor_main() {
 		esac
 		shift
 	done
+
+	check_empty_str "$sample" \
+		|| die "$0" "$LINENO" \
+			"extractor requires --sample to operate"
+	check_empty_str "$typing_res" \
+		|| die "$0" "$LINENO" "extractor requires typing result (--typing_res)"
+	check_empty_str "$hla_ref" \
+		|| die "$0" "$LINENO" "extractor requires a HLA ref file (--hla_ref)"
+
+	check_file_exists "$typing_res" \
+		|| die "$0" "$LINENO" "extractor failed to find typing result: $typing_res"
+	check_file_exists "$hla_ref" \
+		|| die "$0" "$LINENO" "extractor failed to find HLA ref: $hla_ref"
+
+	typing_res=$( get_abs_path "$typing_res" "f" )
+	hla_ref=$( get_abs_path "$hla_ref" "f" )
 
   local outdir="${out%/*}"
   outdir=$( make_dir "$outdir" )
