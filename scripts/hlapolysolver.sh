@@ -15,8 +15,8 @@ Options:
 EO
 	cat << EO | column -s\& -t
 	--sample    & Specify the sample name [Required]
-	-b or --bam    & Specify the path to the BAM file [Required]	
-	-t or --tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
+	--bam    & Specify the path to the BAM file [Required]	
+	--tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
 	--hla_ref    & Specify the Novoalign HLA indexed file, e.g. abc_complete.fasta [Required]
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	--freq    & Specify the HLA allele population frequency file [Required]
@@ -49,30 +49,18 @@ while [ $# -gt 0 ]; do
 		-h|--help)
 			usage
 			exit 0;;
-		--sample)
-			shift; sample="$1";;
-		-b|--bam)
-			shift; bam=$(parse_path "$1");;
-		-t|--tag)
-			shift; tag_file=$(parse_path "$1");;
-		--hla_ref)
-			shift; hla_ref=$(parse_path "$1");;
-		--bed)
-			shift; hla_bed=$(parse_path "$1");;
-		--fish_mode)
-			shift; fish_mode="$1";;
-		--freq)
-			shift; freq_file=$(parse_path "$1");;
-		--race)
-			shift; race="$1";;
-		--outdir)
-			shift; outdir="$1";;
-		-p|--nproc)
-			shift; nproc="$1";;
-		--realn_only)
-			realn_only=true;;
-		--)
-			shift; break;;
+		--sample) shift; sample="$1";;
+		--bam) shift; bam="$1";;
+		--tag) shift; tag_file="$1";;
+		--hla_ref) shift; hla_ref="$1";;
+		--bed) shift; hla_bed="$1";;
+		--fish_mode) shift; fish_mode="$1";;
+		--freq) shift; freq_file="$1";;
+		--race) shift; race="$1";;
+		--outdir) shift; outdir="$1";;
+		-p|--nproc) shift; nproc="$1";;
+		--realn_only) realn_only=true;;
+		--) shift; break;;
 		*)
 			echo "Invalid option: $1" 1>&2
 			usage; exit 1;
@@ -99,9 +87,10 @@ fisher --mode "$fish_mode" --tag "$tag_file" --bed "$hla_bed" --bam "$bam" \
 	--sample "$sample" --out "$fish_out" --nproc "$nproc" \
   || die "$0" "$LINENO" "Failed to run fisher"
 
-if [ ! -f "$fish_out" ]; then
-  die "$0" "$LINENO" "Failed to find fisher result $fish_out"
-fi
+#if [ ! -f "$fish_out" ]; then
+check_file_exists "$fish_out" \
+  || die "$0" "$LINENO" "Failed to find fisher result $fish_out"
+#fi
 
 # realigner
 if [ "$realn_only" = false ]; then
@@ -123,19 +112,20 @@ else
 fi
 
 # typer
-if [ ! -f "$realn_out" ]; then
-  die "$0" "$LINENO" "Failed to find realigned BAM file $realn_out"
-fi
+#if [ ! -f "$realn_out" ]; then
+check_file_exists "$realn_out" \
+   || die "$0" "$LINENO" "Failed to find realigned BAM file $realn_out"
+#fi
 
 typer_dir="$outdir/typer"
 typer_out="$typer_dir/$sample.hlatyping.res.tsv"
 pyhlatyper --freq "$freq_file" --race "$race" --out "$typer_out" \
 	--bam "$realn_out" --nproc "$nproc" \
   || die "$0" "$LINENO" "Failed to run typer."
-if [ ! -f "$typer_out" ]; then
-  error "$0" "$LINENO" "Failed to find typing result $typer_out"
-  exit 1
-fi
+#if [ ! -f "$typer_out" ]; then
+check_file_exists "$typer_out" \
+  || die "$0" "$LINENO" "Failed to find typing result $typer_out"
+#fi
 
 # extractor
 final_dir="$outdir/finalizer"
@@ -143,6 +133,9 @@ extract_out="$final_dir/$sample.hla.fasta"
 extract_sample_hlaref --hla_ref "$hla_ref" \
 	--sample "$sample" --typeres "$typer_out" --out "$extract_out" \
   || die "$0" "$LINENO" "Failed to extract sample HLA ref"
+
+check_file_exists "$extract_out" \
+  || die "$0" "$LINENO" "Failed to find extraced sample HLA ref: $extract_out"
 
 # realigner against the sample hla ref
 final_realn_out="$final_dir/$sample.hla.realn.ready.bam"
