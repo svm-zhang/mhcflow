@@ -20,7 +20,7 @@ function fish () {
 	case "$mode" in
 		faster) fish_tag_faster "$bam" "$tag_file" "$fished_tag_rids";;
 		fast) fish_tag_fast "$bam" "$tag_file" "$fished_tag_rids";;
-		*) die "$0" "$LINENO" "Unrecognized fishing mode $mode"
+		*) die "${FUNCNAME[0]}" "$LINENO" "Unrecognized fishing mode $mode"
 	esac
 
   local fished_hla_rids="${outdir}/fished.hla.aln.ids"
@@ -29,7 +29,7 @@ function fish () {
 	cat "$fished_hla_rids" "$fished_tag_rids" \
 		| sort \
 		| uniq > "$out_fished_rids" \
-		|| die "$0" "$LINENO" "Failed to merge TAG and HLA read IDs"
+		|| die "${FUNCNAME[0]}" "$LINENO" "Failed to merge TAG and HLA read IDs"
 
 	rm -f "$fished_hla_rids" "$fished_tag_rids"
 }
@@ -39,30 +39,35 @@ function fish_tag_faster () {
   local tag_file="$2"
 	local out="$3"
 
-  info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode"
-	info "$0" ${LINENO} "Fish TAG reads from alignments on chromosome 6"
+  info "${FUNCNAME[0]}" ${LINENO} \
+		"Fish TAG reads from alignments using faster mode"
+	info "${FUNCNAME[0]}" ${LINENO} \
+		"Fish TAG reads from alignments on chromosome 6"
 	local chrom6=""
 	chrom6=$( samtools view -H "$bam" \
 		| { grep "SN:6\|SN:chr6\|SN:NC000006\|SN:CM000668" || test "$?" = 1; } \
 		| cut -f2 \
 		| sed 's/SN://g' \
-    || die "$0" "$LINENO" "Failed to grep chrom6 ref in BAM header"
+    || die "${FUNCNAME[0]}" "$LINENO" "Failed to grep chrom6 ref in BAM header"
 	)
 	if [ -z "$chrom6" ]; then
-    die "$0" "$LINENO" "Failed to extract ref name for chromosome 6 from header"
+    die "${FUNCNAME[0]}" "$LINENO" \
+			"Failed to extract ref name for chromosome 6 from header"
 	fi
 	samtools view -@"$nproc" "$bam" "$chrom6" \
 		| cut -f1,10 \
 		| { grep -F -f "$tag_file" || true; } \
 		| cut -f1 > "$out" \
-    || die "$0" "$LINENO" "Failed to fish reads from alignments on chromosome 6"
+    || die "${FUNCNAME[0]}" "$LINENO" \
+			"Failed to fish reads from alignments on chromosome 6"
 
-	info "$0" ${LINENO} "Fish TAG reads from unplaced alignments"
+	info "${FUNCNAME[0]}" "$LINENO" "Fish TAG reads from unplaced alignments"
 	samtools view -@"$nproc" -f4 "$bam" \
 		| cut -f1,10 \
 		| { grep -F -f "$tag_file" || true; } \
 		| cut -f1 >> "$out"
-  info "$0" ${LINENO} "Fish TAG reads from alignments using faster mode [DONE]"
+  info "${FUNCNAME[0]}" "$LINENO" \
+		"Fish TAG reads from alignments using faster mode [DONE]"
 }
 
 function fish_tag_fast () {
@@ -70,28 +75,32 @@ function fish_tag_fast () {
   local tag_file="$2"
 	local out="$3"
 
-  info "$0" ${LINENO} "Fish TAG reads from alignments using fast mode"
+  info "${FUNCNAME[0]}" "$LINENO" \
+		"Fish TAG reads from alignments using fast mode"
 	local bam_size=0
 	bam_size=$( du -bs "$bam" | awk '{print $1/2^30}' )
 	if [ -z "$bam_size" ]; then
-		die "$0" "$LINENO" "Failed to obtaint input BAM file size"
+		die "${FUNCNAME[0]}" "$LINENO" "Failed to obtaint input BAM file size"
 	fi
-	info "$0" ${LINENO} "Obtain input BAM file size: ${bam_size}G" 
-	info "$0" ${LINENO} "Split BAM into parts for faster fishing reads"
+	info "${FUNCNAME[0]}" "$LINENO" \
+		"Obtain input BAM file size: ${bam_size}G" 
+	info "${FUNCNAME[0]}" "$LINENO" \
+		"Split BAM into parts for faster fishing reads"
 	local outdir="${out%/*}"
 	local split_bam_dir="${outdir}/bams"
 	split_bam_dir=$( make_dir "$split_bam_dir" )
 	bam_size_int=$( printf "%.0f" "$bam_size" )
 	split_size=$(( (bam_size_int+1+nproc-1)/nproc ))
-	info "$0" ${LINENO} "Split BAM file into ${split_size}G each"
+	info "${FUNCNAME[0]}" "$LINENO" "Split BAM file into ${split_size}G each"
 	# split bam files
 	samtools view "$bam" \
 		| cut -f1,10 \
 		| split -C "${split_size}G" -d -a 2 \
 			--additional-suffix ".txt" - "$split_bam_dir/" \
-		|| die "$0" "$LINENO" "Failed to split input bam to parts for fishing tags"
+		|| die "${FUNCNAME[0]}" "$LINENO" \
+			"Failed to split input bam to parts for fishing tags"
 
-	info "$0" ${LINENO} "Fish reads from each individual split file"
+	info "${FUNCNAME[0]}" "$LINENO" "Fish reads from each individual split file"
 	find "$split_bam_dir" -name "*.txt" \
 		| sed 's/\.txt//g' \
 		| xargs -P"$nproc" -I{} bash -c "grep -F -f $tag_file {}.txt | cut -f1 >> $out"
@@ -99,7 +108,8 @@ function fish_tag_fast () {
 	if [ -d "$split_bam_dir" ]; then
 		rm -rf "$split_bam_dir"
 	fi
-  info "$0" ${LINENO} "Fish TAG reads from alignments using fast mode [DONE]"
+  info "${FUNCNAME[0]}" "$LINENO" \
+		"Fish TAG reads from alignments using fast mode [DONE]"
 }
 
 function fish_from_hla_aln () {
@@ -108,14 +118,15 @@ function fish_from_hla_aln () {
 	local out_fished_hla_rids="$3"
 
   #getting chr6 region
-  info "$0" ${LINENO} "Get reads mapped to HLA regions in BAM" 
-  #fished_hla_rids="${outdir}/${sample}.fished.hla.aln.ids"
+  info "${FUNCNAME[0]}" "$LINENO" "Get reads mapped to HLA regions in BAM" 
   samtools view -ML "$hla_bed" "$bam" \
     | cut -f1 \
     | sort \
     | uniq > "$out_fished_hla_rids" \
-    || die "$0" "$LINENO" "Failed to get reads mapped to HLA regions in BAM"
-  info "$0" ${LINENO} "Get reads mapped to HLA regions in BAM [DONE]" 
+    || die "${FUNCNAME[0]}" "$LINENO" \
+			"Failed to get reads mapped to HLA regions in BAM"
+  info "${FUNCNAME[0]}" "$LINENO" \
+		"Get reads mapped to HLA regions in BAM [DONE]" 
 }
 
 function fisher_usage () {
@@ -172,22 +183,26 @@ function fisherman () {
 	done
 
 	check_empty_str "$sample" \
-		|| die "$0" "$LINENO" \
+		|| die "${FUNCNAME[0]}" "$LINENO" \
 			"fisher requires --sample to operate"
 	check_empty_str "$bam" \
-		|| die "$0" "$LINENO" "fisher requires a BAM file(--bam)"
+		|| die "${FUNCNAME[0]}" "$LINENO" "fisher requires a BAM file(--bam)"
 	check_empty_str "$tag_file" \
-		|| die "$0" "$LINENO" "fisher requires HLA Kmer tag file (--tag)"
+		|| die "${FUNCNAME[0]}" "$LINENO" \
+			"fisher requires HLA Kmer tag file (--tag)"
 	check_empty_str "$hla_bed" \
-		|| die "$0" "$LINENO" "fisher requires a HLA BED file (--hla_bed)"
+		|| die "${FUNCNAME[0]}" "$LINENO" \
+			"fisher requires a HLA BED file (--hla_bed)"
 
 	check_file_exists "$bam" \
-		|| die "$0" "$LINENO" "fisher failed to find provided BAM file: $bam"
+		|| die "${FUNCNAME[0]}" "$LINENO" \
+			"fisher failed to find provided BAM file: $bam"
 	check_file_exists "$tag_file" \
-		|| die "$0" "$LINENO" \
+		|| die "${FUNCNAME[0]}" "$LINENO" \
 			"fisher failed to find provided KMER taga file: $tag_file"
 	check_file_exists "$hla_bed" \
-		|| die "$0" "$LINENO" "fisher failed to find provided BED file: $hla_bed"
+		|| die "${FUNCNAME[0]}" "$LINENO" \
+			"fisher failed to find provided BED file: $hla_bed"
 
 	bam=$( get_abs_path "$bam" "f" )
 	hla_bed=$( get_abs_path "$hla_bed" "f" )
@@ -217,7 +232,7 @@ function fisherman () {
 	#	exit 1
 	#fi
 
-	info "$0" ${LINENO} "Run fisher for HLA-related read candidates" 
+	info "${FUNCNAME[0]}" ${LINENO} "Run fisher for HLA-related read candidates" 
 	local start_time
 	start_time=$(date +%s)
 
@@ -229,33 +244,35 @@ function fisherman () {
 	# getting matching tag sequences
 	local fish_done="${logdir}/${sample}.fish.done"
 	if [ -f "$fish_done" ]; then
-		info "$0" ${LINENO} "Fishing has previously done."
+		info "${FUNCNAME[0]}" ${LINENO} "Fishing has previously done."
 		exit 0
 	fi
 
-	info "$0" ${LINENO} "Start fishing" 
+	info "${FUNCNAME[0]}" ${LINENO} "Start fishing" 
 	local out_fished_rids="${outdir}/${sample}.fished.ids"
 	fish "$bam" "$tag_file" "$hla_bed" "$out_fished_rids" "$mode"
 	if [ -z "$out_fished_rids" ] || [ ! -f "$out_fished_rids" ]; then
-		die "$0" "$LINENO" "Failed to find fished read id file $out_fished_rids"
+		die "${FUNCNAME[0]}" "$LINENO" \
+			"Failed to find fished read id file $out_fished_rids"
 	fi
 	local n_fished_reads=0
 	n_fished_reads=$( wc -l < "$out_fished_rids" )
 	if(( "$n_fished_reads" == 0 )); then
-		die "$0" "$LINENO" "Fisher failed to find any reads. Exit"
+		die "${FUNCNAME[0]}" "$LINENO" "Fisher failed to find any reads. Exit"
 	fi
 
 	# cash in actual reads given these ids
-	info "$0" ${LINENO} "Cash in actual reads given fished IDs" 
+	info "${FUNCNAME[0]}" ${LINENO} "Cash in actual reads given fished IDs" 
 	local fished_R1="${outdir}/${sample}.fished.R1.fastq"
 	local fished_R2="${outdir}/${sample}.fished.R2.fastq"
 	samtools view -@"$nproc" -bh -N "$out_fished_rids" "$bam" \
 		| samtools sort -n \
 		| samtools fastq -n -1 "$fished_R1" -2 "$fished_R2" -0 /dev/null -s /dev/null \
-		|| die "$0" "$LINENO" "Failed to cash in actual reads given ids"
+		|| die "${FUNCNAME[0]}" "$LINENO" "Failed to cash in actual reads given ids"
 
 	if [ ! -f "$fished_R1" ] || [ ! -f "$fished_R2" ]; then
-		die "$0" "$LINENO" "Failed to find either $fished_R1 or $fished_R2 fastq file"
+		die "${FUNCNAME[0]}" "$LINENO" \
+			"Failed to find either $fished_R1 or $fished_R2 fastq file"
 	fi
 	echo -e "$fished_R1\t$fished_R2" > "$out"
 
@@ -273,7 +290,7 @@ function fisherman () {
 		"${runtime}m" >> "$fisher_stat_file"
 
 	touch "$fish_done"
-	info "$0" ${LINENO} "Fish done, time to go home" 
+	info "${FUNCNAME[0]}" ${LINENO} "Fish done, time to go home" 
 }
 
 fisherman "$@"
