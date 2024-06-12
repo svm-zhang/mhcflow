@@ -9,6 +9,8 @@ function run_novoalign () {
   local nix="$3"
   local outdir="$4"
 
+  # not gonna check existence of r1 and r2
+  # novoalign will fail and log file should record it
   IFS=" " read -r r1 r2 <<< "$reads"
 
   local logdir="$outdir/log"
