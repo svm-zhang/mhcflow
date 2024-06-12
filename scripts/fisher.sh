@@ -208,30 +208,6 @@ function fisherman () {
 	hla_bed=$( get_abs_path "$hla_bed" "f" )
 	tag_file=$( get_abs_path "$tag_file" "f" )
 
-	#if [ -z "$bam" ]; then
-	#	error "$0" ${LINENO} "polysolver requires a BAM file to work with" 
-	#	fisher_usage
-	#	exit 1
-	#fi
-
-	#if [ -z "$sample" ]; then
-	#	error "$0" ${LINENO} "polysolver needs a sample name" 
-	#	fisher_usage
-	#	exit 1
-	#fi
-
-	#if [ -z "$tag_file" ]; then
-	#	error "$0" ${LINENO} "polysolver requires a TAG sequence file, such as abc_v14.uniq" 
-	#	fisher_usage
-	#	exit 1
-	#fi
-
-	#if [ -z "$hla_bed" ]; then
-	#	error "$0" ${LINENO} "polysolver requires the HLA region file in BED" 
-	#	fisher_usage
-	#	exit 1
-	#fi
-
 	info "${FUNCNAME[0]}" ${LINENO} "Run fisher for HLA-related read candidates" 
 	local start_time
 	start_time=$(date +%s)
