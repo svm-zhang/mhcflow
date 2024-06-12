@@ -126,8 +126,8 @@ fisher_usage: $program [options]
 Options:
 EO
 	cat << EO | column -s\& -t
-	-b or --bam    & Specify the path to the BAM file [Required]	
-	-t or --tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
+	--bam    & Specify the path to the BAM file [Required]
+	--tag    & Specify the TAG file, e.g. abc_v14.uniq [Required]
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	--sample    & Specify the sample name [Required]
 	--out    & Specify the path to file hosting fished fq file list [Required]
@@ -155,22 +155,14 @@ function fisherman () {
 			-h|--help)
 				fisher_usage
 				exit 0;;
-			--sample)
-				shift; sample="$1";;
-			-b|--bam)
-				shift; bam=$(parse_path "$1");;
-			-t|--tag)
-				shift; tag_file=$(parse_path "$1");;
-			--bed)
-				shift; hla_bed=$(parse_path "$1");;
-			--out)
-				shift; out="$1";;
-			--mode)
-				shift; mode="$1";;
-			-p|--nproc)
-				shift; nproc="$1";;
-			--)
-				shift; break;;
+			--sample) shift; sample="$1";;
+			--bam) shift; bam="$1";;
+			--tag) shift; tag_file="$1";;
+			--bed) shift; hla_bed="$1";;
+			--out) shift; out="$1";;
+			--mode) shift; mode="$1";;
+			-p|--nproc) shift; nproc="$1";;
+			--) shift; break;;
 			*)
 				echo "Invalid option: $1" 1>&2
 				fisher_usage; exit 0;
@@ -179,29 +171,51 @@ function fisherman () {
 		shift
 	done
 
-	if [ -z "$bam" ]; then
-		error "$0" ${LINENO} "polysolver requires a BAM file to work with" 
-		fisher_usage
-		exit 1
-	fi
+	check_empty_str "$sample" \
+		|| die "$0" "$LINENO" \
+			"fisher requires --sample to operate"
+	check_empty_str "$bam" \
+		|| die "$0" "$LINENO" "fisher requires a BAM file(--bam)"
+	check_empty_str "$tag_file" \
+		|| die "$0" "$LINENO" "fisher requires HLA Kmer tag file (--tag)"
+	check_empty_str "$hla_bed" \
+		|| die "$0" "$LINENO" "fisher requires a HLA BED file (--hla_bed)"
 
-	if [ -z "$sample" ]; then
-		error "$0" ${LINENO} "polysolver needs a sample name" 
-		fisher_usage
-		exit 1
-	fi
+	check_file_exists "$bam" \
+		|| die "$0" "$LINENO" "fisher failed to find provided BAM file: $bam"
+	check_file_exists "$tag_file" \
+		|| die "$0" "$LINENO" \
+			"fisher failed to find provided KMER taga file: $tag_file"
+	check_file_exists "$hla_bed" \
+		|| die "$0" "$LINENO" "fisher failed to find provided BED file: $hla_bed"
 
-	if [ -z "$tag_file" ]; then
-		error "$0" ${LINENO} "polysolver requires a TAG sequence file, such as abc_v14.uniq" 
-		fisher_usage
-		exit 1
-	fi
+	bam=$( get_abs_path "$bam" "f" )
+	hla_bed=$( get_abs_path "$hla_bed" "f" )
+	tag_file=$( get_abs_path "$tag_file" "f" )
 
-	if [ -z "$hla_bed" ]; then
-		error "$0" ${LINENO} "polysolver requires the HLA region file in BED" 
-		fisher_usage
-		exit 1
-	fi
+	#if [ -z "$bam" ]; then
+	#	error "$0" ${LINENO} "polysolver requires a BAM file to work with" 
+	#	fisher_usage
+	#	exit 1
+	#fi
+
+	#if [ -z "$sample" ]; then
+	#	error "$0" ${LINENO} "polysolver needs a sample name" 
+	#	fisher_usage
+	#	exit 1
+	#fi
+
+	#if [ -z "$tag_file" ]; then
+	#	error "$0" ${LINENO} "polysolver requires a TAG sequence file, such as abc_v14.uniq" 
+	#	fisher_usage
+	#	exit 1
+	#fi
+
+	#if [ -z "$hla_bed" ]; then
+	#	error "$0" ${LINENO} "polysolver requires the HLA region file in BED" 
+	#	fisher_usage
+	#	exit 1
+	#fi
 
 	info "$0" ${LINENO} "Run fisher for HLA-related read candidates" 
 	local start_time
