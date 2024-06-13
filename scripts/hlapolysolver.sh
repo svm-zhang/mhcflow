@@ -87,10 +87,8 @@ fisher --mode "$fish_mode" --tag "$tag_file" --bed "$hla_bed" --bam "$bam" \
 	--sample "$sample" --out "$fish_out" --nproc "$nproc" \
   || die "$0" "$LINENO" "Failed to run fisher"
 
-#if [ ! -f "$fish_out" ]; then
 check_file_exists "$fish_out" \
   || die "$0" "$LINENO" "Failed to find fisher result $fish_out"
-#fi
 
 # realigner
 if [ "$realn_only" = false ]; then
@@ -112,20 +110,15 @@ else
 fi
 
 # typer
-#if [ ! -f "$realn_out" ]; then
 check_file_exists "$realn_out" \
    || die "$0" "$LINENO" "Failed to find realigned BAM file $realn_out"
-#fi
-
 typer_dir="$outdir/typer"
 typer_out="$typer_dir/$sample.hlatyping.res.tsv"
 pyhlatyper --freq "$freq_file" --race "$race" --out "$typer_out" \
 	--bam "$realn_out" --nproc "$nproc" \
   || die "$0" "$LINENO" "Failed to run typer."
-#if [ ! -f "$typer_out" ]; then
 check_file_exists "$typer_out" \
   || die "$0" "$LINENO" "Failed to find typing result $typer_out"
-#fi
 
 # extractor
 final_dir="$outdir/finalizer"
@@ -133,7 +126,6 @@ extract_out="$final_dir/$sample.hla.fasta"
 extractor --hla_ref "$hla_ref" \
 	--sample "$sample" --typeres "$typer_out" --out "$extract_out" \
   || die "$0" "$LINENO" "Failed to extract sample HLA ref"
-
 check_file_exists "$extract_out" \
   || die "$0" "$LINENO" "Failed to find extraced sample HLA ref: $extract_out"
 
