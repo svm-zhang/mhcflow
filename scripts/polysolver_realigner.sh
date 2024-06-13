@@ -80,24 +80,6 @@ function realigner_main () {
 	fqs=$( get_abs_path "$fqs" "f" )
 	hla_ref=$( get_abs_path "$hla_ref" "f" )
 
-	#if [ -z "$fqs" ]; then
-	#	error "$0" ${LINENO} "polysolver needs a sample name"
-	#	realn_usage
-	#	exit 1
-	#fi
-
-	#if [ -z "$sample" ]; then
-	#	error "$0" ${LINENO} "polysolver needs a sample name"
-	#	realn_usage
-	#	exit 1
-	#fi
-
-	#if [ -z "$hla_ref" ]; then
-	#	error "$0" "$LINENO" "polysolver requires the Novoalign HLA fasta, such as abc_complete.fasta"
-	#	realn_usage
-	#	exit 1
-	#fi
-
 	info "$0" ${LINENO} "Run Polysolver HLA realigner"
 	local start_time
 	start_time=$(date +%s)
@@ -117,10 +99,6 @@ function realigner_main () {
 	check_file_exists "$hla_ref_nix" \
 		|| die "$0" "$LINENO" \
 			"realigner failed to find indexed HLA ref: $hla_ref_nix"
-
-	#if [ ! -f "$fqs" ]; then
-	#	die "$0" "$LINENO" "Failed to find provided fished fastq list file $fqs"
-	#fi
 
 	local realn_input_list=""
 	local split_dir="${outdir}/splits"
