@@ -102,7 +102,7 @@ if [ "$realn_only" = false ]; then
 else
 	realn_dir="$outdir/finalizer"
 	realn_out="$realn_dir/$sample.hla.realn.ready.bam"
-	polysolver_realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
+	realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
 		--sample "$sample" --out "$realn_out" --nproc "$nproc" --mdup \
 		|| die "$0" "$LINENO" "Failed to run realigner"
 
@@ -130,7 +130,7 @@ check_file_exists "$typer_out" \
 # extractor
 final_dir="$outdir/finalizer"
 extract_out="$final_dir/$sample.hla.fasta"
-extract_sample_hlaref --hla_ref "$hla_ref" \
+extractor --hla_ref "$hla_ref" \
 	--sample "$sample" --typeres "$typer_out" --out "$extract_out" \
   || die "$0" "$LINENO" "Failed to extract sample HLA ref"
 
