@@ -1,0 +1,1 @@
+Remeber to mention that novoalign and novoindex need to be manually made accessible
