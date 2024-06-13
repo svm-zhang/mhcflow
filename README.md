@@ -6,7 +6,7 @@ new features, runs faster, and is friendly to pipeline integration.
 
 ## Features
 
-* Supports both class I and II(https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#class-ii-hla-typing) typing with good accuracy
+* Supports both class I and [II](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#class-ii-hla-typing) typing with good accuracy
 * Re-engineered in modern style with
   * Modular design
   * Faster runtime with internal optimization
