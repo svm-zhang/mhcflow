@@ -21,6 +21,42 @@ Please refer to [INSATLL](INSTALL.md) for details.
 
 ## Quick Start
 
+`polysolvermod` requires
+* Sorted genomic alignment in BAM format with index
+* HLA reference sequence in Fasta and Nix (novoalign index)
+* BED file with region of each HLA allele
+* HLA kmer tags
+* HLA 4-digit supertype frequency table
+
+Let us type class 1 alleles for `NA12046` sample provided by the 1000
+genome project:
+
+```
+polysolvermod --bam NA12046.so.bam \
+  --hla_ref abc_complete.fasta \
+  --bed class1.bed \
+  --tag abc_v14.uniq \
+  --freq HLA_FREQ.txt \
+  --outdir "$PWD/NA12046_class1 \
+  --sample NA12046
+```
+
+The command above generates HLA typing results in the designated output
+directory specified by `--outdir` option. A peek into the result folder looks
+like:
+
+```
+-- NA12046_class1
+   -- finalizer
+   -- fisher
+   -- realigner
+   -- typer
+```
+
+## Output Explain
+
+ 
+
 ## Step by Step
 
 ## Class II HLA typing
