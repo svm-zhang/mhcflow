@@ -30,7 +30,7 @@ Please refer to [INSATLL](INSTALL.md) for details.
 * HLA 4-digit supertype frequency table
 
 Let us type class 1 alleles for `NA12046` sample provided by the 1000
-genome project:
+genome project (`NA12046` will be used as example throughout this doc):
 
 ```
 polysolvermod --bam NA12046.so.bam \
@@ -77,6 +77,40 @@ hla_c_06_02_01_02       hla_c   1519636.0349    NA12046
 ```
 
 ## Step by Step
+
+`polysolvermod` is re-engineered with a modular design. It generally consists of
+4 steps: `fishing`, `realigning`, `typing`, and `realigning` (again). Each module implements basic break-and-continue mechanism, meaning that module finished previously will be automatically skipped. Also it is more friendly to integrate
+with pipeline/workflow.
+
+### Fisherman: fishing HLA-relevant reads
+
+The original `polysolver` algorithm fishes HLA-related reads via matching
+pre-built kmer (tag) sequence and extracting alignments mapped to regions where
+HLA class I allele located. `polysolvermod` follows the same strategy and speeds
+it up.
+
+```
+fisher --mode faster \
+  --tag abc_v14.uniq \
+  --bed class1.bed \
+  --bam NA12046.so.bam \
+	--sample NA12045 \
+  --out "$PWD/NA12046_class1/fisher/NA12046.fqs.list.txt
+```
+
+The result is plain text file with two lines of fished fastq files 
+(paired-end reads).
+
+It is important to note there are other approches to fish HLA-relevant reads.
+For instance, `Optitype` aligns trimmed reads against the HLA reference using
+`razers3`. From my experience, direct alignment finds more reads and these
+reads tend to align better. However, `razers3` is not quite memory-efficient,
+which in my opinion limits its utility, especially your computing platform
+is not unlimited. The approach that the original `polysolver` uses provides
+decent fishing result.
+
+### Realigner: realigning fished reads to HLA reference
+
 
 ## Class II HLA typing
 
