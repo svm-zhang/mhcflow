@@ -145,8 +145,7 @@ The `pyhlatyper` written in this repo tires to improves on all aspects:
 1. Typing two alleles with one program call
 2. Making typing CPU-bound powered by `polars` and `pysam`
 3. Processing alignments to calculate scores in parallel
-4. Enabling possibility of typing alleles other than the ones defined
-in class I, such as class II alleles
+4. Enabling possibility of typing alleles class II alleles
 5. Capturing errors in proper way
 6. Free of hard-coded code
 
@@ -204,16 +203,15 @@ simply not using this option.
 
 ## Extend to Class II typing
 
-Empowered by `pyhlatyper`, I naively try to type Class II alleles. The same process
-should work. All I need to are Class II reference, kmer (tag) sequences, Class II BED file, and Class II supertype frequency data. I provide them within the
-`reference` folder under `class2`.
+The original `polysolver` algorithm has been well-known for genotyping Class I alleles. However, in theory it should also be able to apply to the Class II case, with certain modification as well as a set of Class II references.
 
-CLI is the same as typing Class I alleles. You only need to swap in the new reference
-files.
+To type the Class II alleles, you only need to swap in the new reference
+data, and the CLI is the same as we have shown for the Class I case.
 
 I have done some preliminary benchmark on Class II typing using some samples from
 1000 genome project. The result is suprisingly not too shady and can be found [here](https://github.com/svm-zhang/hla_benchmark).
 
+You can also find all Class II-related reference data within the `reference` folder in this repo.
 
 ## Scenario: detecting LOH from paired tumor and normal samples
 
@@ -245,9 +243,7 @@ LOH events.
 
 ## Disclaimer
 
-I, by no means, try to overtake the origianl idea of `polysolver` algorithm. This
-repo opens to all non-commercial researchers and projects. My mere purpose is to
-make `polysolver` better, faster, more versatile, if not more accurate. 
+I, by no means, try to overtake the origianl idea and implementation of `polysolver` algorithm. This repo opens to all non-commercial researchers and projects. My mere purpose is to make `polysolver` better, faster, more versatile, if not more accurate. 
 
 ## Citation
 
