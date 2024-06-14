@@ -82,6 +82,9 @@ hla_c_06_02_01_02       hla_c   1519636.0349    NA12046
 4 steps: `fishing`, `realigning`, `typing`, and `realigning` (again). Each module implements basic break-and-continue mechanism, meaning that module finished previously will be automatically skipped. Also it is more friendly to integrate
 with pipeline/workflow.
 
+The `hlapolysolver.sh` script and `polysolvermod` binary (after building the package)
+demonstrates each following step, if you are interested.
+
 ### Fisherman: fishing HLA-relevant reads
 
 The original `polysolver` algorithm fishes HLA-related reads via matching
@@ -142,7 +145,8 @@ The `pyhlatyper` written in this repo tires to improves on all aspects:
 1. Typing two alleles with one program call
 2. Making typing CPU-bound powered by `polars` and `pysam`
 3. Processing alignments to calculate scores in parallel
-4. Enabling possibility of typing alleles other than the ones defined in class I
+4. Enabling possibility of typing alleles other than the ones defined
+in class I, such as class II alleles
 5. Capturing errors in proper way
 6. Free of hard-coded code
 
@@ -157,9 +161,51 @@ that it does not actaully use frequency as prior to calculate posterior scores.
 This means the `--race` is always `Unknown`. The choice was made because the race
 is usually not a known factor when dealing with real-world data. I probably will remove the `--race` option from CLI for good in the future.
 
+## Realigner: generating analysis-ready HLA typing result
 
+The original `polysolver` finishes after typing is done. `polysolvermod` goes
+beyond by providing
+1. HLA reference sequence specific to the typed sample
+2. Alignment against the sample HLA reference
+
+The reason to have this additional step is to get analysis-ready result. What
+I mean by that. In oncology and/or immuno-oncology research, one of the questions
+people has is to know if there is loss of heterozygosity (LOH) occurring in a tumor
+sample. (`lohhla`)[https://bitbucket.org/mcgranahanlab/lohhla/src/master/] is the
+common go-to algorithm to answer the question. However, `lohhla`, before detecting
+any LOH event, goes through realigning both normal and tumor samples, despite typing
+has been done for the normal sample. Also realignment, in my opinion, belongs to
+pipeline. LOH detection algorithm should be simplified to serve what it is designed
+for. To have a clearer picture of what I mean, please refer to [tumor and normal scenario](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#Scenario: WES of tumor and paired-normal samples) below.
+
+The final realignment process splits into two steps.
+First to extract and index sample-level HLA reference.
+```
+extractor --hla_ref abc_complete.fasta \
+  --sample NA12046 \
+  --typeres "$PWD/NA12046_class1/typer/NA12046.hla_typing.res.tsv
+  --out "$PWD/NA12046_class1/finalizer/NA12046.hla.fasta
+
+```
+
+Then do the realignment against this new reference.
+```
+realigner \
+  --hla_ref "$PWD/NA12046_class1/finalizer/NA12046.hla.fasta
+  --fqs "$PWD/NA12046_class1/fisher/NA12046.fqs.list.txt \
+  --sample NA12046 \
+  --mdup \
+  --out "$PWD/NA12046_class1/finalizer/NA12046.hla.realn.ready.bam
+```
+
+The `--mdup` option marks PCR duplicates so that when counting coverage during
+LOH detection, duplicated reads do not get included. If you want to keep duplicates,
+simply not using this option.
 
 ## Class II HLA typing
+
+
+## Scenario: WES of tumor and paired-normal samples
 
 
 ## Disclaimer
