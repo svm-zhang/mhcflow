@@ -168,15 +168,15 @@ beyond by providing
 1. HLA reference sequence specific to the typed sample
 2. Alignment against the sample HLA reference
 
-The reason to have this additional step is to get analysis-ready result. What
-I mean by that. In oncology and/or immuno-oncology research, one of the questions
+The reason to have this additional step is to get analysis-ready result. 
+In oncology and/or immuno-oncology research, one of the questions
 people has is to know if there is loss of heterozygosity (LOH) occurring in a tumor
-sample. (`lohhla`)[https://bitbucket.org/mcgranahanlab/lohhla/src/master/] is the
+sample. `(lohhla)[https://bitbucket.org/mcgranahanlab/lohhla/src/master/]` is the
 common go-to algorithm to answer the question. However, `lohhla`, before detecting
 any LOH event, goes through realigning both normal and tumor samples, despite typing
 has been done for the normal sample. Also realignment, in my opinion, belongs to
 pipeline. LOH detection algorithm should be simplified to serve what it is designed
-for. To have a clearer picture of what I mean, please refer to [tumor and normal scenario](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#Scenario: WES of tumor and paired-normal samples) below.
+for. To have a clearer picture of what I mean, please refer to [tumor and normal scenario](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#scenario-wes-of-tumor-and-paired-normal-samples) below.
 
 The final realignment process splits into two steps.
 First to extract and index sample-level HLA reference.
