@@ -202,7 +202,17 @@ The `--mdup` option marks PCR duplicates so that when counting coverage during
 LOH detection, duplicated reads do not get included. If you want to keep duplicates,
 simply not using this option.
 
-## Class II HLA typing
+## Extend to Class II typing
+
+Empowered by `pyhlatyper`, I naively try to type Class II alleles. The same process
+should work. All I need to are Class II reference, kmer (tag) sequences, Class II BED file, and Class II supertype frequency data. I provide them within the
+`reference` folder under `class2`.
+
+CLI is the same as typing Class I alleles. You only need to swap in the new reference
+files.
+
+I have done some preliminary benchmark on Class II typing using some samples from
+1000 genome project. The result is suprisingly not too shady and can be found [here](https://github.com/svm-zhang/hla_benchmark).
 
 
 ## Scenario: detecting LOH from paired tumor and normal samples
