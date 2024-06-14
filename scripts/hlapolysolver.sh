@@ -94,7 +94,7 @@ check_file_exists "$fish_out" \
 if [ "$realn_only" = false ]; then
 	realn_dir="$outdir/realigner"
 	realn_out="$realn_dir/$sample.hla.realn.so.bam"
-	polysolver_realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
+	realigner --hla_ref "$hla_ref" --fqs "$fish_out" \
 		--sample "$sample" --out "$realn_out" --nproc "$nproc" \
 		|| die "$0" "$LINENO" "Failed to run realigner"
 else
@@ -131,8 +131,9 @@ check_file_exists "$extract_out" \
 
 # realigner against the sample hla ref
 final_realn_out="$final_dir/$sample.hla.realn.ready.bam"
-polysolver_realigner --hla_ref "$extract_out" --fqs "$fish_out" \
-	--sample "$sample" --out "$final_realn_out" --nproc "$nproc" \
+realigner --hla_ref "$extract_out" --fqs "$fish_out" \
+	--sample "$sample" --out "$final_realn_out" \
+	--mdup --nproc "$nproc" \
   || die "$0" "$LINENO" \
 		"Failed to run realigner on sample HLA ref"
 
