@@ -94,7 +94,7 @@ fisher --mode faster \
   --tag abc_v14.uniq \
   --bed class1.bed \
   --bam NA12046.so.bam \
-	--sample NA12045 \
+  --sample NA12045 \
   --out "$PWD/NA12046_class1/fisher/NA12046.fqs.list.txt
 ```
 
@@ -103,13 +103,30 @@ The result is plain text file with two lines of fished fastq files
 
 It is important to note there are other approches to fish HLA-relevant reads.
 For instance, `Optitype` aligns trimmed reads against the HLA reference using
-`razers3`. From my experience, direct alignment finds more reads and these
-reads tend to align better. However, `razers3` is not quite memory-efficient,
+`razerS3`. From my experience, direct alignment finds more reads and these
+reads tend to align better. However, `razerS3` is not quite memory-efficient,
 which in my opinion limits its utility, especially your computing platform
 is not unlimited. The approach that the original `polysolver` uses provides
 decent fishing result.
 
 ### Realigner: realigning fished reads to HLA reference
+
+Next the realigner module aligns the fished reads against the provided
+class I HLA reference sequence using `novoalign`, same as the original
+`polysolver` program. The difference is the realigner module achieves the
+reaignment process in parallel to speed things up a bit.
+
+```
+realigner --hla_ref abc_complete.fasta \
+  --fqs "$PWD/NA12046_class1/fisher/NA12046.fqs.list.txt \
+  --sample NA12046 \
+  --out "$PWD/NA12046_class1/realigner/NA12046.hla.realn.so.bam
+```
+
+Because the academia version of `novoalign` does not support gzipped fastq
+file, this step can take up some disk space depending on the sample
+sequencing depth that is HLA-related.
+
 
 
 ## Class II HLA typing
