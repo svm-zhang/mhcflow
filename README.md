@@ -171,7 +171,7 @@ beyond by providing
 The reason to have this additional step is to get analysis-ready result. 
 In oncology and/or immuno-oncology research, one of the questions
 people has is to know if there is loss of heterozygosity (LOH) occurring in a tumor
-sample. `(lohhla)[https://bitbucket.org/mcgranahanlab/lohhla/src/master/]` is the
+sample. (lohhla)[https://bitbucket.org/mcgranahanlab/lohhla/src/master/] is the
 common go-to algorithm to answer the question. However, `lohhla`, before detecting
 any LOH event, goes through realigning both normal and tumor samples, despite typing
 has been done for the normal sample. Also realignment, in my opinion, belongs to
