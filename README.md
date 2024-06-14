@@ -127,6 +127,36 @@ Because the academia version of `novoalign` does not support gzipped fastq
 file, this step can take up some disk space depending on the sample
 sequencing depth that is HLA-related.
 
+### Typer: typing HLA class I genotype
+
+The typer module is a complete overhaul of the origial perl scripts
+`first_allele_calculations.pl` and `second_allele_calcuations.pl`. The original
+`polysolver` algorithm types first and second alleles at a locus in two
+separated processes. For each HLA class I allele defined in the HLA reference
+sequence, it outputs a plain text file with scores. This generates thousands of
+files that creates I/O pressure and make the typing process I/O bound. Also,
+it takes about 3-4 script calls to type the first allele and makes it hard to
+track when error happens.
+
+The `pyhlatyper` written in this repo tires to improves on all aspects:
+1. Typing two alleles with one program call
+2. Making typing CPU-bound powered by `polars` and `pysam`
+3. Processing alignments to calculate scores in parallel
+4. Enabling possibility of typing alleles other than the ones defined in class I
+5. Capturing errors in proper way
+6. Free of hard-coded code
+
+```
+pyhlatyper --freq HLA_FREQ.txt \
+  --bam "$PWD/NA12046_class1/realigner/NA12046.hla.realn.so.bam \
+  --out "$PWD/NA12046_class1/typer/NA12046.hla_typing.res.tsv
+```
+
+One important difference of `pyhlatyper` from the original typing scripts is
+that it does not actaully use frequency as prior to calculate posterior scores.
+This means the `--race` is always `Unknown`. The choice was made because the race
+is usually not a known factor when dealing with real-world data. I probably will remove the `--race` option from CLI for good in the future.
+
 
 
 ## Class II HLA typing
