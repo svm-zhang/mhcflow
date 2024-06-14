@@ -6,7 +6,7 @@ new features, runs faster, and is friendly to pipeline integration.
 
 ## Features
 
-* Supports both class I and [II](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#extend-to-class-ii-typing) typing with good accuracy
+* Supports both class I and [II](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#extend-to-class-ii-typing) typing with good [accuracy](https://github.com/svm-zhang/hla_benchmark?tab=readme-ov-file)
 * Generates analysis-ready HLA alignments for HLALOH detection
 * Re-engineered in modern style with
   * Modular design
