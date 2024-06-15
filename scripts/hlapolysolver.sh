@@ -58,7 +58,7 @@ while [ $# -gt 0 ]; do
 		--bed) shift; hla_bed="$1";;
 		--fish_mode) shift; fish_mode="$1";;
 		--freq) shift; freq_file="$1";;
-		--min_ecnt) shift: min_ecnt="$1";;
+		--min_ecnt) shift; min_ecnt="$1";;
 		--race) shift; race="$1";;
 		--outdir) shift; outdir="$1";;
 		-p|--nproc) shift; nproc="$1";;
