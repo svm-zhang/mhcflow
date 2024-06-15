@@ -9,21 +9,21 @@ LIBCOMMON="${SRC_DIR%/*}/lib/libcommon.sh"
 source "$LIBCOMMON"
 
 function fish () {
-  local bam="$1"
-  local tag_file="$2"
+	local bam="$1"
+	local tag_file="$2"
 	local hla_bed="$3"
 	local out_fished_rids="$4"
 	local mode="$5"
 
 	local outdir="${out_fished_rids%/*}"
-  local fished_tag_rids="${outdir}/fished.tag.ids"
+	local fished_tag_rids="${outdir}/fished.tag.ids"
 	case "$mode" in
 		faster) fish_tag_faster "$bam" "$tag_file" "$fished_tag_rids";;
 		fast) fish_tag_fast "$bam" "$tag_file" "$fished_tag_rids";;
 		*) die "${FUNCNAME[0]}" "$LINENO" "Unrecognized fishing mode $mode"
 	esac
 
-  local fished_hla_rids="${outdir}/fished.hla.aln.ids"
+	local fished_hla_rids="${outdir}/fished.hla.aln.ids"
 	fish_from_hla_aln "$bam" "$hla_bed" "$fished_hla_rids"
 
 	cat "$fished_hla_rids" "$fished_tag_rids" \
@@ -35,11 +35,11 @@ function fish () {
 }
 
 function fish_tag_faster () {
-  local bam="$1"
-  local tag_file="$2"
+	local bam="$1"
+	local tag_file="$2"
 	local out="$3"
 
-  info "${FUNCNAME[0]}" ${LINENO} \
+	info "${FUNCNAME[0]}" ${LINENO} \
 		"Fish TAG reads from alignments using faster mode"
 	info "${FUNCNAME[0]}" ${LINENO} \
 		"Fish TAG reads from alignments on chromosome 6"
@@ -66,16 +66,16 @@ function fish_tag_faster () {
 		| cut -f1,10 \
 		| { grep -F -f "$tag_file" || true; } \
 		| cut -f1 >> "$out"
-  info "${FUNCNAME[0]}" "$LINENO" \
+	info "${FUNCNAME[0]}" "$LINENO" \
 		"Fish TAG reads from alignments using faster mode [DONE]"
 }
 
 function fish_tag_fast () {
 	local bam="$1"
-  local tag_file="$2"
+	local tag_file="$2"
 	local out="$3"
 
-  info "${FUNCNAME[0]}" "$LINENO" \
+	info "${FUNCNAME[0]}" "$LINENO" \
 		"Fish TAG reads from alignments using fast mode"
 	local bam_size=0
 	bam_size=$( du -bs "$bam" | awk '{print $1/2^30}' )
@@ -108,30 +108,30 @@ function fish_tag_fast () {
 	if [ -d "$split_bam_dir" ]; then
 		rm -rf "$split_bam_dir"
 	fi
-  info "${FUNCNAME[0]}" "$LINENO" \
+	info "${FUNCNAME[0]}" "$LINENO" \
 		"Fish TAG reads from alignments using fast mode [DONE]"
 }
 
 function fish_from_hla_aln () {
-  local bam="$1"
-  local hla_bed="$2"
+	local bam="$1"
+	local hla_bed="$2"
 	local out_fished_hla_rids="$3"
 
-  #getting chr6 region
-  info "${FUNCNAME[0]}" "$LINENO" "Get reads mapped to HLA regions in BAM" 
-  samtools view -ML "$hla_bed" "$bam" \
-    | cut -f1 \
-    | sort \
-    | uniq > "$out_fished_hla_rids" \
-    || die "${FUNCNAME[0]}" "$LINENO" \
-			"Failed to get reads mapped to HLA regions in BAM"
-  info "${FUNCNAME[0]}" "$LINENO" \
+	#getting chr6 region
+	info "${FUNCNAME[0]}" "$LINENO" "Get reads mapped to HLA regions in BAM" 
+	samtools view -ML "$hla_bed" "$bam" \
+		| cut -f1 \
+		| sort \
+		| uniq > "$out_fished_hla_rids" \
+		|| die "${FUNCNAME[0]}" "$LINENO" \
+				"Failed to get reads mapped to HLA regions in BAM"
+	info "${FUNCNAME[0]}" "$LINENO" \
 		"Get reads mapped to HLA regions in BAM [DONE]" 
 }
 
 function fisher_usage () {
 	local program
-  program="${0##*/}"
+	program="${0##*/}"
 	cat << EO
 fisher_usage: $program [options]
 Options:
