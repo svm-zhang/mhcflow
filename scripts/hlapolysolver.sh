@@ -21,6 +21,7 @@ EO
 	--bed    & Specify the path to the HLA region defined in BED [Required]
 	--freq    & Specify the HLA allele population frequency file [Required]
 	--fish_mode    & Specify the mode fisher to use (faster, fast) [faster]
+	--min_ecnt    & Specify the min number of mismatch event allowed [999]
 	--outdir    & Specify the path to output base directory [Required]
 	-r or --race    & Specify the race (Caucasian, Black, Asian, Unknown) [Unknown]
 	--nproc    & Specify the number of CPUs used [8]
@@ -34,6 +35,7 @@ hla_ref=
 hla_bed=
 freq_file=
 fish_mode="faster"
+min_ecnt=999
 race="Unknown"
 sample=
 nproc=8
@@ -56,6 +58,7 @@ while [ $# -gt 0 ]; do
 		--bed) shift; hla_bed="$1";;
 		--fish_mode) shift; fish_mode="$1";;
 		--freq) shift; freq_file="$1";;
+		--min_ecnt) shift: min_ecnt="$1";;
 		--race) shift; race="$1";;
 		--outdir) shift; outdir="$1";;
 		-p|--nproc) shift; nproc="$1";;
@@ -115,7 +118,7 @@ check_file_exists "$realn_out" \
 typer_dir="$outdir/typer"
 typer_out="$typer_dir/$sample.hlatyping.res.tsv"
 pyhlatyper --freq "$freq_file" --race "$race" --out "$typer_out" \
-	--bam "$realn_out" --nproc "$nproc" \
+	--bam "$realn_out" --min_ecnt "$min_ecnt" --nproc "$nproc" \
   || die "$0" "$LINENO" "Failed to run typer."
 check_file_exists "$typer_out" \
   || die "$0" "$LINENO" "Failed to find typing result $typer_out"
