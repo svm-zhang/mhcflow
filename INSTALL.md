@@ -18,15 +18,24 @@ One important thing to note: you will need to have `novoalign` and `novoindex` b
 Installation on OSX-64 requires a few additional steps:
 * You need to switch to `bash` shell
 * Set `subdirs` to `osx-64` in your `.condarc` or `.mambarc` config file
-* You need GNU-coreutils to have access to the GNU implementation of `grep`, `split`, `du`
+* You need install GNU-coreutils to have access to the GNU implementation of `grep`, `split`, `cut`, `date`, and `du`
 ```
 brew install coreutils
-echo "alias split='gsplit'" >> "$HOME/.bash_profile"
-echo "alias grep='ggrep'" >> "$HOME/.bash_profile"
-echo "alias du='gdu'" >> "$HOME/.bash_profile"
 ```
 
-According to novocraft website, `novoalign` and `novoindex` are yet to be optimized for OSX-64.
+`homebrew` adds a `g` prefix to these commands to avoid conflict with the Free-BSD ones on Mac. To make sure `polysolvermod` to use the GNU version, you can simply
+
+```
+cp "$homebrew/bin/ggrep" "$conda_env_dir/bin/grep"
+cp "$homebrew/bin/gcut" "$conda_env_dir/bin/cut"
+cp "$homebrew/bin/gsplit" "$conda_env_dir/bin/split"
+cp "$homebrew/bin/gdate" "$conda_env_dir/bin/date"
+cp "$homebrew/bin/gdu" "$conda_env_dir/bin/du"
+```
+
+You can also use symbolic link rather than copying.
+
+One more thing: according to novocraft website, `novoalign` are yet to be optimized for the Apple Silicon chip.
 
 ## Manual
 
