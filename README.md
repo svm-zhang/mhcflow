@@ -1,4 +1,10 @@
-# polysolver Modern
+<h1>
+    Polysolver HLA typing in modern style
+</h1>
+
+[TOC]
+
+## Introduction
 
 `polysolvermod` is the original [polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) HLA typing algorithm re-engineered
 in modern style. It offers almost all aspects of the original algorithm, adds
@@ -6,15 +12,14 @@ new features, runs faster, and is friendly to pipeline integration.
 
 ## Features
 
-* Supports both class I and [II](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#extend-to-class-ii-typing) typing with good [accuracy](https://github.com/svm-zhang/hla_benchmark?tab=readme-ov-file)
-* Generates analysis-ready HLA alignments for HLALOH detection
-* Re-engineered in modern style with
-  * Modular design
-  * Faster runtime with internal optimization
-  * Minimum I/O operations
-  * Minimum hard-coded code
-  * Easy integration to pipeline with packaging and better CLI
-
+- Supports both class I and [II](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#extend-to-class-ii-typing) typing with good [accuracy](https://github.com/svm-zhang/hla_benchmark?tab=readme-ov-file)
+- Generates analysis-ready HLA alignments for HLALOH detection
+- Re-engineered in modern style with
+  - Modular design
+  - Faster runtime with internal optimization
+  - Minimum I/O operations
+  - Minimum hard-coded code
+  - Easy integration to pipeline with packaging and better CLI
 
 ## Installation
 
@@ -23,11 +28,12 @@ Please refer to [INSATLL](INSTALL.md) for details.
 ## Quick Start
 
 `polysolvermod` requires
-* Sorted genomic alignment in BAM format with index
-* HLA reference sequence in Fasta and Nix (novoalign index)
-* BED file with region of each HLA allele
-* HLA kmer tags
-* HLA 4-digit supertype frequency table
+
+- Sorted genomic alignment in BAM format with index
+- HLA reference sequence in Fasta and Nix (novoalign index)
+- BED file with region of each HLA allele
+- HLA kmer tags
+- HLA 4-digit supertype frequency table
 
 Let us type class 1 alleles for `NA12046` sample provided by the 1000
 genome project (`NA12046` will be used as example throughout this doc):
@@ -57,7 +63,7 @@ folder looks like:
 ## Explain Output
 
 The `finalizer` folder provides the sample-level HLA reference sequence that
-can be directly used as reference for realigning tumor data in a paired tumor 
+can be directly used as reference for realigning tumor data in a paired tumor
 and normal setting. There is also an alignment result in BAM against this
 sample-level reference with suffix `hla.realn.ready.bam`. In context of oncology
 or immuno-oncology research, the BAM file can be directly ported to program to
@@ -101,7 +107,7 @@ fisher --mode faster \
   --out "$PWD/NA12046_class1/fisher/NA12046.fqs.list.txt
 ```
 
-The result is plain text file with two lines of fished fastq files 
+The result is plain text file with two lines of fished fastq files
 (paired-end reads).
 
 It is important to note there are other approches to fish HLA-relevant reads.
@@ -142,6 +148,7 @@ it takes about 3-4 script calls to type the first allele and makes it hard to
 track when error happens.
 
 The `pyhlatyper` written in this repo tires to improves on all aspects:
+
 1. Typing two alleles with one program call
 2. Making typing CPU-bound powered by `polars` and `pysam`
 3. Processing alignments to calculate scores in parallel
@@ -164,10 +171,11 @@ is usually not a known factor when dealing with real-world data. I probably will
 
 The original `polysolver` finishes after typing is done. `polysolvermod` goes
 beyond by providing
+
 1. HLA reference sequence specific to the typed sample
 2. Alignment against the sample HLA reference
 
-The reason to have this additional step is to get analysis-ready result. 
+The reason to have this additional step is to get analysis-ready result.
 In oncology and/or immuno-oncology research, one of the questions
 people has is to know if there is loss of heterozygosity (LOH) occurring in a tumor
 sample. [lohhla](https://bitbucket.org/mcgranahanlab/lohhla/src/master/) is the
@@ -179,6 +187,7 @@ for. To have a clearer picture of what I mean, please refer to [tumor and normal
 
 The final realignment process splits into two steps.
 First to extract and index sample-level HLA reference.
+
 ```
 extractor --hla_ref abc_complete.fasta \
   --sample NA12046 \
@@ -188,6 +197,7 @@ extractor --hla_ref abc_complete.fasta \
 ```
 
 Then do the realignment against this new reference.
+
 ```
 realigner \
   --hla_ref "$PWD/NA12046_class1/finalizer/NA12046.hla.fasta
@@ -243,10 +253,11 @@ LOH events.
 
 ## Disclaimer
 
-I, by no means, try to overtake the origianl idea and implementation of `polysolver` algorithm. This repo opens to all non-commercial researchers and projects. My mere purpose is to make `polysolver` better, faster, more versatile, if not more accurate. 
+I, by no means, try to overtake the origianl idea and implementation of `polysolver` algorithm. This repo opens to all non-commercial researchers and projects. My mere purpose is to make `polysolver` better, faster, more versatile, if not more accurate.
 
 ## Citation
 
 Please cite the original [polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) paper
 
 If you use `polysolvermod`, please cite this github repo as well.
+
