@@ -2,7 +2,24 @@
     Polysolver HLA typing in modern style
 </h1>
 
-[TOC]
+<!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
+
+- [Introduction](#introduction)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Explain Output](#explain-output)
+- [Step by Step](#step-by-step)
+  - [Fisherman: fishing HLA-relevant reads](#fisherman-fishing-hla-relevant-reads)
+  - [Realigner: realigning fished reads to HLA reference](#realigner-realigning-fished-reads-to-hla-reference)
+  - [Typer: typing HLA class I genotype](#typer-typing-hla-class-i-genotype)
+- [Realigner: generating analysis-ready HLA typing result](#realigner-generating-analysis-ready-hla-typing-result)
+- [Extend to Class II typing](#extend-to-class-ii-typing)
+- [Scenario: detecting LOH from paired tumor and normal samples](#scenario-detecting-loh-from-paired-tumor-and-normal-samples)
+- [Disclaimer](#disclaimer)
+- [Citation](#citation)
+
+<!-- TOC end -->
 
 ## Introduction
 
@@ -264,4 +281,3 @@ LOH events.
 Please cite the original [Polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) paper.
 
 If you use `polysolvermod`, please cite this github repo as well.
-
