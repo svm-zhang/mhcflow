@@ -268,12 +268,18 @@ steps using the sample-specific HLA reference obtained in earlier example.
 Now you can skip the mapping step (`--skip-map`) in `lohhla`, and directly detect
 LOH events.
 
+## License
+
+`polysolvermod` respects all LICENSE requirement imposed by the original `Polysolver` software and the Broad Institute. It is a modification under Polysolver's "BSD-style Licnese" with the sole purpose of providing a software for better integration with modern bioinformatics pipeline and downstream analysis program, such as LOHHLA. It is free to use and to be modified for all non-commercial parties. All commercial use of the tool or any modification or derivative of the tool, including transfer, sale or licence to a commercial third party or use on behalf of a commercial third party (including but not limited to use as part of a service supplied to any third party for financial reward) requires a licence.
+
+`polysolvermod` provides resouces specific for typing HLA class II alleles (files under `resource` folder in this repo). This resource is licensed under GPLV 3.0.
+
 ## Disclaimer
 
 - I, by no means, intend to overtake the origianl idea and implementation of `Polysolver` algorithm.
 - This repo does not distribute `Polysolver` software, as well as all its dependencies such as `Novoalign` under commercial licenses.
 - `polysolvermod` re-engineered only the HLA typing algorithm. All other tools in the `Polysolver` suite was not modified and included in this repo.
-- `polysolvermod` does not necessarily produce identical as `Polysolver` on typing HLA class I alleles.
+- `polysolvermod` does not necessarily produce identical result as `Polysolver` on typing HLA class I alleles.
 - Please interpret result at your own discretion when using `polysolvermod`. [`hla_benchmark`](https://github.com/svm-zhang/hla_benchmark) repo provides fundamental assessment of `polysolvermod` using 1000 genome data on HLA-A, HLA-B, HLA-C, HLA-DQB1, and HLA-DRB1.
 
 ## Citation
