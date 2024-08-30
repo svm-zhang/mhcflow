@@ -253,11 +253,15 @@ LOH events.
 
 ## Disclaimer
 
-I, by no means, try to overtake the origianl idea and implementation of `polysolver` algorithm. This repo opens to all non-commercial researchers and projects. My mere purpose is to make `polysolver` better, faster, more versatile, if not more accurate.
+- I, by no means, intend to overtake the origianl idea and implementation of `Polysolver` algorithm.
+- This repo does not distribute `Polysolver` software, as well as all its dependencies such as `Novoalign` under commercial licenses.
+- `polysolvermod` re-engineered only the HLA typing algorithm. All other tools in the `Polysolver` suite was not modified and included in this repo.
+- `polysolvermod` does not necessarily produce identical HLA typing results as `Polysolver`.
+- Please use your own judgement to intepret result of running `polysolvermod` on your data. [`hla_benchmark`](https://github.com/svm-zhang/hla_benchmark) repo provides fundamental assessment of `polysolvermod` using 1000 genome data.
 
 ## Citation
 
-Please cite the original [polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) paper
+Please cite the original [Polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) paper.
 
 If you use `polysolvermod`, please cite this github repo as well.
 
