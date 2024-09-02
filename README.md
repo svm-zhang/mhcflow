@@ -196,7 +196,7 @@ beyond by providing
 The reason to have this additional step is to get analysis-ready result.
 In oncology and/or immuno-oncology research, one of the questions
 people has is to know if there is loss of heterozygosity (LOH) occurring in a tumor
-sample. [lohhla](https://bitbucket.org/mcgranahanlab/lohhla/src/master/) is the
+sample. [LOHHLA](https://bitbucket.org/mcgranahanlab/lohhla/src/master/) is the
 common go-to algorithm to answer the question. However, `lohhla`, before detecting
 any LOH event, goes through realigning both normal and tumor samples, despite typing
 has been done for the normal sample. Also realignment, in my opinion, belongs to
@@ -271,13 +271,12 @@ LOH events.
 
 ## License
 
-- `polysolver-mod` respects all LICENSE requirement imposed by the original `Polysolver` software and the Broad Institute.
-- I am inquiring licensing with the original authors of `Polysolver`, and will update it at a later point. Meanwhile, `polysolver-mod` is free to use and to be modified for all non-commercial parties.
+- `polysolver-mod` respects all LICENSE requirement imposed by the original `Polysolver` software, and is licensed under GPL-3.
 
 ## Disclaimer
 
 - I, by no means, intend to overtake the origianl idea and implementation of `Polysolver` algorithm.
-- This repo does not distribute `Polysolver` software, as well as all its dependencies such as `Novoalign` under commercial licenses.
+- This repo does not distribute `Polysolver` software, as well as all its dependencies such as `novoalign` and `novoindex` under commercial licenses.
 - `polysolver-mod` re-engineered only the HLA typing algorithm. All other tools in the `Polysolver` suite was not modified and included in this repo.
 - `polysolver-mod` does not necessarily produce identical result as `Polysolver` on typing HLA class I alleles.
 - Please interpret result at your own discretion when using `polysolver-mod`. [`hla_benchmark`](https://github.com/svm-zhang/hla_benchmark) repo provides fundamental assessment of `polysolver-mod` using 1000 genome data on HLA-A, HLA-B, HLA-C, HLA-DQB1, and HLA-DRB1.
