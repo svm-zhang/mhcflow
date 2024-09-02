@@ -1,5 +1,5 @@
 <h1>
-    Polysolver HLA typing in modern style
+    polysolver-mod
 </h1>
 
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
@@ -10,9 +10,9 @@
 - [Quick Start](#quick-start)
 - [Explain Output](#explain-output)
 - [Step by Step](#step-by-step)
-   * [Fisherman: fishing HLA-relevant reads](#fisherman-fishing-hla-relevant-reads)
-   * [Realigner: realigning fished reads to HLA reference](#realigner-realigning-fished-reads-to-hla-reference)
-   * [Typer: typing HLA class I genotype](#typer-typing-hla-class-i-genotype)
+  - [Fisherman: fishing HLA-relevant reads](#fisherman-fishing-hla-relevant-reads)
+  - [Realigner: realigning fished reads to HLA reference](#realigner-realigning-fished-reads-to-hla-reference)
+  - [Typer: typing HLA class I genotype](#typer-typing-hla-class-i-genotype)
 - [Realigner: generating analysis-ready HLA typing result](#realigner-generating-analysis-ready-hla-typing-result)
 - [Extend to Class II typing](#extend-to-class-ii-typing)
 - [Scenario: detecting LOH from paired tumor and normal samples](#scenario-detecting-loh-from-paired-tumor-and-normal-samples)
@@ -24,13 +24,13 @@
 
 ## Introduction
 
-`polysolvermod` is the original [polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) HLA typing algorithm re-engineered
+`polysolver-mod` is the original [polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) HLA typing algorithm re-engineered
 in modern style. It offers almost all aspects of the original algorithm, adds
 new features, runs faster, and is friendly to pipeline integration.
 
 ## Features
 
-- Supports both class I and [II](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#extend-to-class-ii-typing) typing with good [accuracy](https://github.com/svm-zhang/hla_benchmark?tab=readme-ov-file)
+- Supports both class I and [II](https://github.com/svm-zhang/polysolver-mod?tab=readme-ov-file#extend-to-class-ii-typing) typing with good [accuracy](https://github.com/svm-zhang/hla_benchmark?tab=readme-ov-file)
 - Generates analysis-ready HLA alignments for HLALOH detection
 - Re-engineered in modern style with
   - Modular design
@@ -45,7 +45,7 @@ Please refer to [INSATLL](INSTALL.md) for details.
 
 ## Quick Start
 
-`polysolvermod` requires
+`polysolver-mod` requires
 
 - Sorted genomic alignment in BAM format with index
 - HLA reference sequence in Fasta and Nix (novoalign index)
@@ -102,18 +102,18 @@ hla_c_06_02_01_02       hla_c   1519636.0349    NA12046
 
 ## Step by Step
 
-`polysolvermod` is re-engineered with a modular design. It generally consists of
+`polysolver-mod` is re-engineered with a modular design. It generally consists of
 4 steps: `fishing`, `realigning`, `typing`, and `realigning` (again). Each module implements basic break-and-continue mechanism, meaning that module finished previously will be automatically skipped. Also it is more friendly to integrate
 with pipeline/workflow.
 
-The `hlapolysolver.sh` script and `polysolvermod` binary (after building the package)
+The `hlapolysolver.sh` script and `polysolver-mod` binary (after building the package)
 demonstrates each following step, if you are interested.
 
 ### Fisherman: fishing HLA-relevant reads
 
 The original `polysolver` algorithm fishes HLA-related reads via matching
 pre-built kmer (tag) sequence and extracting alignments mapped to regions where
-HLA class I allele located. `polysolvermod` follows the same strategy and speeds
+HLA class I allele located. `polysolver-mod` follows the same strategy and speeds
 it up.
 
 ```
@@ -187,7 +187,7 @@ is usually not a known factor when dealing with real-world data. I probably will
 
 ## Realigner: generating analysis-ready HLA typing result
 
-The original `polysolver` finishes after typing is done. `polysolvermod` goes
+The original `polysolver` finishes after typing is done. `polysolver-mod` goes
 beyond by providing
 
 1. HLA reference sequence specific to the typed sample
@@ -201,7 +201,7 @@ common go-to algorithm to answer the question. However, `lohhla`, before detecti
 any LOH event, goes through realigning both normal and tumor samples, despite typing
 has been done for the normal sample. Also realignment, in my opinion, belongs to
 pipeline. LOH detection algorithm should be simplified to serve what it is designed
-for. To have a clearer picture of what I mean, please refer to [tumor and normal scenario](https://github.com/svm-zhang/polysolverMod?tab=readme-ov-file#scenario-wes-of-tumor-and-paired-normal-samples) below.
+for. To have a clearer picture of what I mean, please refer to [tumor and normal scenario](https://github.com/svm-zhang/polysolver-mod?tab=readme-ov-file#scenario-wes-of-tumor-and-paired-normal-samples) below.
 
 The final realignment process splits into two steps.
 First to extract and index sample-level HLA reference.
@@ -247,7 +247,7 @@ Detecting LOH event within the HLA region has been one of the popular subjects
 scientists want to look into, especially in a clinical cohort where patients receive
 immune checkpoint inhibitor treatment. Homozygous HLA genotypes decrease the diversity of antigen/neo-antigen the immune system can capture.
 
-`polysolvermod` can generate LOH analysis-ready inputs for both tumor and paired
+`polysolver-mod` can generate LOH analysis-ready inputs for both tumor and paired
 normal samples. Here, I only show how to prepare for the tumor data. You can refer
 to upstairs for getting the normal data ready.
 
@@ -263,7 +263,7 @@ polysolvermod --bam NA12046.tumor.so.bam \
   --sample NA12046.tumor
 ```
 
-The `--realn_only` tells `polysolvermod` to run only the fishing and realigning
+The `--realn_only` tells `polysolver-mod` to run only the fishing and realigning
 steps using the sample-specific HLA reference obtained in earlier example.
 
 Now you can skip the mapping step (`--skip-map`) in `lohhla`, and directly detect
@@ -271,20 +271,19 @@ LOH events.
 
 ## License
 
-`polysolvermod` respects all LICENSE requirement imposed by the original `Polysolver` software and the Broad Institute. It is a modification under Polysolver's "BSD-style Licnese" with the sole purpose of providing a software for better integration with modern bioinformatics pipeline and downstream analysis program, such as LOHHLA. It is free to use and to be modified for all non-commercial parties. All commercial use of the tool or any modification or derivative of the tool, including transfer, sale or licence to a commercial third party or use on behalf of a commercial third party (including but not limited to use as part of a service supplied to any third party for financial reward) requires a licence.
-
-`polysolvermod` provides resouces specific for typing HLA class II alleles (files under `resource` folder in this repo). This resource is licensed under GPLV 3.0.
+- `polysolver-mod` respects all LICENSE requirement imposed by the original `Polysolver` software and the Broad Institute.
+- I am inquiring licensing with the original authors of `Polysolver`, and will update it at a later point. Meanwhile, `polysolver-mod` is free to use and to be modified for all non-commercial parties.
 
 ## Disclaimer
 
 - I, by no means, intend to overtake the origianl idea and implementation of `Polysolver` algorithm.
 - This repo does not distribute `Polysolver` software, as well as all its dependencies such as `Novoalign` under commercial licenses.
-- `polysolvermod` re-engineered only the HLA typing algorithm. All other tools in the `Polysolver` suite was not modified and included in this repo.
-- `polysolvermod` does not necessarily produce identical result as `Polysolver` on typing HLA class I alleles.
-- Please interpret result at your own discretion when using `polysolvermod`. [`hla_benchmark`](https://github.com/svm-zhang/hla_benchmark) repo provides fundamental assessment of `polysolvermod` using 1000 genome data on HLA-A, HLA-B, HLA-C, HLA-DQB1, and HLA-DRB1.
+- `polysolver-mod` re-engineered only the HLA typing algorithm. All other tools in the `Polysolver` suite was not modified and included in this repo.
+- `polysolver-mod` does not necessarily produce identical result as `Polysolver` on typing HLA class I alleles.
+- Please interpret result at your own discretion when using `polysolver-mod`. [`hla_benchmark`](https://github.com/svm-zhang/hla_benchmark) repo provides fundamental assessment of `polysolver-mod` using 1000 genome data on HLA-A, HLA-B, HLA-C, HLA-DQB1, and HLA-DRB1.
 
 ## Citation
 
 Please cite the original [Polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) paper.
 
-If you use `polysolvermod`, please cite this github repo as well.
+If you use `polysolver-mod`, please cite this github repo as well.
