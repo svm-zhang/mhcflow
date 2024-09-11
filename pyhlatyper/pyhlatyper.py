@@ -5,20 +5,19 @@ from __future__ import annotations
 import argparse
 import itertools
 import math
-import numpy as np
 import os
-import polars as pl
-import pysam
 import re
-
 from functools import partial
 from multiprocessing import get_context
 from pathlib import Path, PosixPath
+
+import numpy as np
+import polars as pl
+import pysam
 from tqdm import tqdm
 
 
 def parse_cmd() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--bam",
@@ -39,7 +38,7 @@ def parse_cmd() -> argparse.ArgumentParser:
         metavar="STR",
         type=str,
         default="Unknown",
-        help="specify path to HLA frequency file",
+        help="specify race [default: Unknown]",
     )
     parser.add_argument(
         "--out",
@@ -100,7 +99,7 @@ def get_parent_dir(p: Path, level: int = 0) -> Path:
 
 
 def make_dir(
-    path: Path,
+    path: Path | str,
     *,
     mode: int = 511,
     parents: bool = False,
@@ -113,12 +112,12 @@ def make_dir(
         path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
 
-def get_alleles(bam: str) -> list(str):
+def get_alleles(bam: str) -> list[str]:
     bamf = pysam.AlignmentFile(bam, "rb")
     return bamf.references
 
 
-def get_rg(bam: str) -> dict(str, str):
+def get_rg(bam: str) -> dict[str, str]:
     bamh = pysam.AlignmentFile(bam, "rb")
     rg = bamh.header.get("RG", None)
     if rg is None:
@@ -127,7 +126,7 @@ def get_rg(bam: str) -> dict(str, str):
     return rg[0]
 
 
-def parse_cigar(cigar_str: str):
+def parse_cigar(cigar_str: str) -> list[tuple[int, str]]:
     cigar_iter = itertools.groupby(cigar_str, lambda k: k.isdigit())
     cigar_list = []
     for _, n in cigar_iter:
@@ -136,23 +135,24 @@ def parse_cigar(cigar_str: str):
     return cigar_list
 
 
-def parse_md(md_str: str):
+def parse_md(md_str: str) -> list[str]:
     md_iter = itertools.groupby(
         md_str, lambda k: k.isalpha() or not k.isalnum()
     )
     return ["".join(group) for c, group in md_iter if not c or group]
 
 
-def aln_has_indel(cigar_str: str):
+def aln_has_indel(cigar_str: str) -> bool:
     cigar = set(k[1] for k in parse_cigar(cigar_str=cigar_str))
     return "I" in cigar or "D" in cigar or "S" in cigar
 
 
-def score_log_liklihood(base_qs, md, scale=math.exp(23)):
+def score_log_liklihood(
+    base_qs: list[int], md: list[str], scale=math.exp(23)
+) -> float:
     score: float = 0.0
     start, end = 0, 0
     for i in range(len(md)):
-        # print(start, end, md[i])
         if md[i].startswith("^"):
             continue
         block = np.array([])
@@ -166,7 +166,6 @@ def score_log_liklihood(base_qs, md, scale=math.exp(23)):
             block = np.array([1 - 10 ** (-k / 10) for k in base_qs[start:end]])
         score += np.sum(np.log(np.multiply(block, scale)))
         start = end
-        # print(start, end, score)
     return score
 
 
@@ -231,7 +230,6 @@ def extract_alignments(
     res_df = res_df.with_columns(pl.col("ids").count().over("ids").alias("n"))
     res_df = res_df.filter(pl.col("n") == 2)
     res_df = res_df.drop("n")
-    # FIXME: need to add frequency prior to the log-liklihood score
     res_df = res_df.group_by("ids").agg(pl.col("scores").sum())
     res_df = res_df.with_columns(allele=pl.lit(allele), gene=pl.lit(hla_gene))
     return res_df
@@ -342,7 +340,6 @@ def score_second(
 
 
 def main():
-
     parser = parse_cmd()
     args = parser.parse_args()
 
