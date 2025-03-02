@@ -149,7 +149,7 @@ check_file_exists "$realn_out" ||
   die "$0" "$LINENO" "Failed to find realigned BAM file $realn_out"
 typer_dir="$outdir/typer"
 typer_out="$typer_dir/$sample.hlatyping.res.tsv"
-pyhlatyper --freq "$freq_file" --out "$typer_out" \
+mhctyper --freq "$freq_file" --outdir "$typer_dir" \
   --bam "$realn_out" --min_ecnt "$min_ecnt" --nproc "$nproc" ||
   die "$0" "$LINENO" "Failed to run typer."
 check_file_exists "$typer_out" ||
