@@ -1,4 +1,4 @@
-# polysolver-mod
+# mhcflow
 
 <!-- toc -->
 
@@ -22,7 +22,7 @@
 
 ## Introduction
 
-`polysolver-mod` is the original
+`mhcflow` is the original
 [polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) HLA
 typing algorithm re-engineered in modern style. It offers almost all aspects
 of the original algorithm, adds new features, runs faster, and is friendly to
@@ -31,7 +31,7 @@ pipeline integration.
 ## Features
 
 - Supports both class I and
-  [II](https://github.com/svm-zhang/polysolver-mod?tab=readme-ov-file#extend-to-class-ii-typing)
+  [II](https://github.com/svm-zhang/mhcflow?tab=readme-ov-file#extend-to-class-ii-typing)
   typing with good
   [accuracy](https://github.com/svm-zhang/hla_benchmark?tab=readme-ov-file)
 - Generates analysis-ready HLA alignments for HLALOH detection
@@ -48,7 +48,7 @@ Please refer to [INSATLL](INSTALL.md) for details.
 
 ## Quick Start
 
-`polysolver-mod` requires
+`mhcflow` requires
 
 - Sorted genomic alignment in BAM format with index
 - HLA reference sequence in Fasta and Nix (novoalign index)
@@ -105,20 +105,20 @@ hla_c_06_02_01_02       hla_c   1519636.0349    NA12046
 
 ## Step by Step
 
-`polysolver-mod` is re-engineered with a modular design. It generally consists of
+`mhcflow` is re-engineered with a modular design. It generally consists of
 4 steps: `fishing`, `realigning`, `typing`, and `realigning` (again). Each
 module implements basic break-and-continue mechanism, meaning that module
 finished previously will be automatically skipped. Also it is more friendly
 to integrate with pipeline/workflow.
 
-The `hlapolysolver.sh` script and `polysolver-mod` binary (after building the package)
+The `hlapolysolver.sh` script and `mhcflow` binary (after building the package)
 demonstrates each following step, if you are interested.
 
 ### Fisherman: fishing HLA-relevant reads
 
 The original `polysolver` algorithm fishes HLA-related reads via matching
 pre-built kmer (tag) sequence and extracting alignments mapped to regions where
-HLA class I allele located. `polysolver-mod` follows the same strategy and speeds
+HLA class I allele located. `mhcflow` follows the same strategy and speeds
 it up.
 
 ```bash
@@ -193,7 +193,7 @@ I probably will remove the `--race` option from CLI for good in the future.
 
 ## Realigner: generating analysis-ready HLA typing result
 
-The original `polysolver` finishes after typing is done. `polysolver-mod` goes
+The original `polysolver` finishes after typing is done. `mhcflow` goes
 beyond by providing
 
 1. HLA reference sequence specific to the typed sample
@@ -209,7 +209,7 @@ has been done for the normal sample. Also realignment, in my opinion, belongs to
 pipeline. LOH detection algorithm should be simplified to serve what it is designed
 for. To have a clearer picture of what I mean, please refer to [tumor and
 normal
-scenario](https://github.com/svm-zhang/polysolver-mod?tab=readme-ov-file#scenario-wes-of-tumor-and-paired-normal-samples)
+scenario](https://github.com/svm-zhang/mhcflow?tab=readme-ov-file#scenario-detecting-loh-from-paired-tumor-and-normal-samples)
 below.
 
 The final realignment process splits into two steps.
@@ -261,7 +261,7 @@ scientists want to look into, especially in a clinical cohort where patients
 receive immune checkpoint inhibitor treatment. Homozygous HLA genotypes
 decrease the diversity of antigen/neo-antigen the immune system can capture.
 
-`polysolver-mod` can generate LOH analysis-ready inputs for both tumor and paired
+`mhcflow` can generate LOH analysis-ready inputs for both tumor and paired
 normal samples. Here, I only show how to prepare for the tumor data. You can refer
 to upstairs for getting the normal data ready.
 
@@ -278,7 +278,7 @@ polysolvermod --bam NA12046.tumor.so.bam \
   --sample NA12046.tumor
 ```
 
-The `--realn_only` tells `polysolver-mod` to run only the fishing and realigning
+The `--realn_only` tells `mhcflow` to run only the fishing and realigning
 steps using the sample-specific HLA reference obtained in earlier example.
 
 Now you can skip the mapping step (`--skip-map`) in `lohhla`, and directly detect
@@ -286,7 +286,7 @@ LOH events.
 
 ## License
 
-- `polysolver-mod` respects all LICENSE requirement imposed by the original
+- `mhcflow` respects all LICENSE requirement imposed by the original
   `Polysolver` software, and is licensed under GPL-3.
 
 ## Disclaimer
@@ -295,14 +295,14 @@ LOH events.
   of `Polysolver` algorithm.
 - This repo does not distribute `Polysolver` software, as well as all
   its dependencies such as `novoalign` and `novoindex` under commercial licenses.
-- `polysolver-mod` re-engineered only the HLA typing algorithm. All other
+- `mhcflow` re-engineered only the HLA typing algorithm. All other
   tools in the `Polysolver` suite was not modified and included in this repo.
-- `polysolver-mod` does not necessarily produce identical result as
+- `mhcflow` does not necessarily produce identical result as
   `Polysolver` on typing HLA class I alleles.
 - Please interpret result at your own discretion when using
-  `polysolver-mod`.
+  `mhcflow`.
   [`hla_benchmark`](https://github.com/svm-zhang/hla_benchmark) repo provides
-  fundamental assessment of `polysolver-mod` using 1000 genome data on HLA-A,
+  fundamental assessment of `mhcflow` using 1000 genome data on HLA-A,
   HLA-B, HLA-C, HLA-DQB1, and HLA-DRB1.
 
 ## Citation
@@ -310,4 +310,4 @@ LOH events.
 Please cite the original
 [Polysolver](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4747795/) paper.
 
-If you use `polysolver-mod`, please cite this github repo as well.
+If you use `mhcflow`, please cite this github repo as well.
