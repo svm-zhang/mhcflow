@@ -1,4 +1,4 @@
-## Quick Start
+# Getting started
 
 `mhcflow` requires
 
@@ -45,12 +45,11 @@ detect HLA loss of heterozygosity.
 The typing result can be found within the `typer` folder, with suffix
 `hlatyping.res.tsv`. The result table should look like the following:
 
-```text
-allele  gene    tot_scores      sample
-hla_a_01_01_29  hla_a   2452923.4298    NA12046
-hla_a_02_05_01  hla_a   1766396.924     NA12046
-hla_b_50_01_01  hla_b   1332194.9171    NA12046
-hla_b_57_01_08  hla_b   1134814.4428    NA12046
-hla_c_06_02_01_01       hla_c   3020505.4303    NA12046
-hla_c_06_02_01_02       hla_c   1519636.0349    NA12046
-```
+| allele           | gene     | tot_scores   | sample   |
+| :--------------- | :------- | :----------- | :------- |
+| hla_a_01_01_29   | hla_a    | 2452923.4298 | NA12046  |
+| hla_a_02_05_01   | hla_a    | 1766396.924  | NA12046  |
+| hla_b_50_01_01   | hla_b    | 1332194.9171 | NA12046  |
+| hla_b_57_01_08   | hla_b    | 1134814.4428 | NA12046  |
+| hla_c_06_02_01_01| hla_c    | 3020505.4303 | NA12046  |
+| hla_c_06_02_01_02| hla_c    | 1519636.0349 | NA12046  |
