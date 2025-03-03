@@ -1,5 +1,9 @@
 # Getting started
 
+## Quick start
+
+### Input
+
 `mhcflow` requires
 
 - Sorted genomic alignment in BAM format with index
@@ -7,6 +11,8 @@
 - BED file with region of each HLA allele
 - HLA kmer tags
 - HLA 4-digit supertype frequency table
+
+### Run mhcflow on sample from 1000 genome
 
 Let us type class 1 alleles for `NA12046` sample provided by the 1000
 genome project (`NA12046` will be used as example throughout this doc):
@@ -21,19 +27,31 @@ mhcflow --bam NA12046.so.bam \
   --sample NA12046
 ```
 
-The command above generates HLA typing results in the designated output
-directory specified by `--outdir` option. A quick peek into the result
-folder looks like:
+## Explain Output
 
-``` text
--- NA12046_class1
-   -- finalizer
-   -- fisher
-   -- realigner
-   -- typer
+The command above generates HLA typing results in the designated output
+directory specified by `--outdir` option. The structure of the output folder
+looks like:
+
+``` { .sh }
+.
+├─ NA12046_class1/
+│  ├─ finalizer/
+│  ├─ fisher/
+│  ├─ realigner/
+│  └─ typer/
 ```
 
-## Explain Output
+### Fisher output
+
+### Realigner output
+
+### Typer output
+
+`mhcflow` uses `mhctyper` for HLA allele typing. Please refer to
+[documentation](https://svm-zhang.github.io/mhctyper/#output-explain) for more details on typing outputs.
+
+### Finalizer output
 
 The `finalizer` folder provides the sample-level HLA reference sequence that
 can be directly used as reference for realigning tumor data in a paired tumor
