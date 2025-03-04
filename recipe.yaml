@@ -1,14 +1,16 @@
 context:
-  version: "0.1"
-  name: polysolvermod 
+  version: "0.2.0"
+  name: mhcflow
 
 package:
-  name: "{{ name }}"
-  version: "{{ version }}"
+  name: ${{ name }}
+  version: ${{ version }}
+  # name: "{{ name }}"
+  # version: "{{ version }}"
 
 source:
   - path: ./scripts
-  - path: ./pyhlatyper
+  # - path: ./pyhlatyper
 
 build:
   number: 1
@@ -18,28 +20,39 @@ build:
 
 requirements:
   host:
-    - python >=3.8
+    - python >=3.10.14
+    - pip
   run:
-    - python >=3.8
-    - numpy
-    - pysam
-    - polars
-    - tqdm
-    - samtools >=1.13
+    - samtools
     - picard
     - seqkit
+    - python >=3.10.14
+    # - numpy
+    # - pysam
+    # - polars
+    # - tqdm
 
-test:
-  exists:
-    bin:
-      - samtools
-      - seqkit
-      - picard
-      - polysolvermod
-      - fisher
-      - realigner
-      - pyhlatyper
-      - extractor
+tests:
+  - package_contents:
+      bin:
+        # - samtools
+        # - seqkit
+        # - picard
+        - mhcflow
+        - fisher
+        - realigner
+        - extractor
+  # exists:
+  #   bin:
+  #     - samtools
+  #     - seqkit
+  #     - picard
+  #     - mhcflow
+  #     # - polysolvermod
+  #     - fisher
+  #     - realigner
+  #     # - pyhlatyper
+  #     - extractor
 
 extra:
   maintainers:
