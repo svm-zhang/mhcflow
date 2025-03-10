@@ -13,6 +13,13 @@ def parse_cmd() -> argparse.ArgumentParser:
         help="specify path to BAM file",
     )
     parser.add_argument(
+        "--tag",
+        metavar="FILE",
+        type=parse_path,
+        required=True,
+        help="specify path to HLA tag sequence file.",
+    )
+    parser.add_argument(
         "--freq",
         metavar="FILE",
         type=parse_path,
