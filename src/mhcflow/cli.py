@@ -20,6 +20,13 @@ def parse_cmd() -> argparse.ArgumentParser:
         help="specify path to HLA tag sequence file.",
     )
     parser.add_argument(
+        "--bed",
+        metavar="FILE",
+        type=parse_path,
+        required=True,
+        help="specify path to HLA region in BED format.",
+    )
+    parser.add_argument(
         "--freq",
         metavar="FILE",
         type=parse_path,
