@@ -16,14 +16,21 @@ charset-normalizer==3.4.1
     # via requests
 idna==3.10
     # via requests
+mhctyper==0.1.6
+    # via mhcflow
 ncls==0.0.68
     # via tinyscibio
 numpy==2.2.3
+    # via mhctyper
     # via ncls
     # via tinyscibio
 polars==1.24.0
+    # via mhctyper
     # via tinyscibio
+pyahocorasick==2.1.0
+    # via mhcflow
 pysam==0.23.0
+    # via mhctyper
     # via tinyscibio
 requests==2.32.3
     # via tinyscibio
@@ -31,5 +38,8 @@ setuptools==75.8.2
     # via tinyscibio
 tinyscibio==0.4.2
     # via mhcflow
+    # via mhctyper
+tqdm==4.67.1
+    # via mhctyper
 urllib3==2.3.0
     # via requests

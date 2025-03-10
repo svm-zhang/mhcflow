@@ -7,6 +7,8 @@ authors = [
 ]
 dependencies = [
     "tinyscibio>=0.4.2",
+    "mhctyper>=0.1.6",
+    "pyahocorasick>=2.1.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
