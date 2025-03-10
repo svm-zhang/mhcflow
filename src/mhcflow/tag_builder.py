@@ -57,7 +57,7 @@ def build(
 
     if method not in PREBUILD_METHOD:
         raise ValueError(
-            "Unsupported prebuild method specified. "
+            f"Unsupported prebuild method specified: {method}. "
             f"Supported ones are: {PREBUILD_METHOD}."
         )
     prebuild_fspath = tag_seq_fspath.with_suffix(".prebuild")
