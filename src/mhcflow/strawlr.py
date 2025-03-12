@@ -3,6 +3,7 @@ import time
 from functools import partial
 
 import numpy as np
+import polars as pl
 import pysam
 from tinyscibio import BAMetadata, _PathLike, bed_to_df, walk_bam
 
@@ -12,9 +13,9 @@ from .tag_builder import build
 CHR6 = ["6", "chr6", "NC00006", "CM000668"]
 
 
-def _fish_unplaced(bam_fspath, prebuilt_tag) -> set[str]:
+def _fish_unplaced(bam_fspath, prebuilt_tag) -> pl.Series:
     logger.info("Fish unplaced sequence with tag pattern")
-    qnames = set()
+    qnames = []
     start_t = time.time()
     with pysam.AlignmentFile(bam_fspath, "rb") as bamf:
         for aln in bamf.fetch(until_eof=True):
@@ -23,26 +24,27 @@ def _fish_unplaced(bam_fspath, prebuilt_tag) -> set[str]:
             assert aln.query_sequence is not None
             match = list(prebuilt_tag.iter(aln.query_sequence))
             if match:
-                qnames.add(aln.query_name)
+                qnames += [aln.query_name]
     logger.info(
         f"Fish unplaced sequence with tag pattern: {time.time() - start_t} sec"
     )
     logger.info(f"Fished {len(qnames)} unplaced sequence with tag pattern")
-    return qnames
+    return pl.Series("qnames", qnames)
 
 
-def _fish_one_hla(region: str, bam_fspath: str):
+def _fish_one_hla(region: str, bam_fspath: str) -> pl.DataFrame:
     return walk_bam(bam_fspath, region, exclude=0, return_qname=True)
 
 
 def _fish_multi_hla(
     bed_fsapth: _PathLike, bam_fspath: str, nproc: int = 4
-) -> set[str]:
+) -> list[pl.Series]:
     logger.info(f"Fish sequence mapped to regions defined in {bed_fsapth}.")
     df = bed_to_df(bed_fsapth)
     regions = [f"{row[0]}:{row[1]}-{row[2]}" for row in df.rows()]
+    print(regions)
     nproc = min(len(regions), nproc)  # nproc set to minimum of these 2 values
-    qnames = set()
+    qnames: list[pl.Series] = []
     start_t = time.time()
     with mp.get_context("spawn").Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
@@ -50,7 +52,7 @@ def _fish_multi_hla(
             regions,
         ):
             if res is not None:
-                qnames = qnames | set(res["qnames"].to_list())
+                qnames += [res["qnames"]]
     logger.info(
         "Fished sequence mapped to regions defined in BED file: "
         f"{time.time() - start_t} sec."
@@ -61,16 +63,16 @@ def _fish_multi_hla(
     return qnames
 
 
-def _fish_one_region(region, bam_fspath, prebuilt_tag) -> set[str]:
-    qnames = set()
+def _fish_one_region(region, bam_fspath, prebuilt_tag) -> pl.Series | None:
+    qnames = []
     sn, start, end = region
     with pysam.AlignmentFile(str(bam_fspath), "rb") as bamf:
         for aln in bamf.fetch(contig=sn, start=start, stop=end):
             assert aln.query_sequence is not None
             match = list(prebuilt_tag.iter(aln.query_sequence))
             if match:
-                qnames.add(aln.query_name)
-    return qnames
+                qnames += [aln.query_name]
+    return pl.Series("qnames", qnames) if qnames else None
 
 
 def _fish_multi_regions(
@@ -78,10 +80,10 @@ def _fish_multi_regions(
     bam_fspath,
     prebuilt_tag,
     nproc: int = 4,
-) -> set[str]:
+) -> list[pl.Series]:
     logger.info("Fish sequence with tag pattern.")
     start_t = time.time()
-    qnames = set()
+    qnames: list[pl.Series] = []
     with mp.Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
             partial(
@@ -91,8 +93,8 @@ def _fish_multi_regions(
             ),
             split_regions,
         ):
-            if res:
-                qnames = qnames | res
+            if res is not None:
+                qnames += [res]
     logger.info(f"Fish sequence with tag pattern: {time.time() - start_t} sec")
     logger.info(f"Fished {len(qnames)} sequences with tag pattern.")
     return qnames
@@ -137,10 +139,10 @@ def run_strawlr(
         sn: [1, ln] for sn, ln in bametadata.seqmap().items() if sn in CHR6
     }
     splits = _split_regions(regions, n_splits=nproc, by="num")
-    fished_qnames = fished_qnames | _fish_multi_regions(
+    fished_qnames += _fish_multi_regions(
         splits, bam_fspath, prebuilt_tag, nproc
     )
+    fished_qnames += [_fish_unplaced(bam_fspath, prebuilt_tag)]
+    merged_qnames = pl.concat(fished_qnames).unique()
 
-    fished_qnames = fished_qnames | _fish_unplaced(bam_fspath, prebuilt_tag)
-
-    logger.info("Fished {len(fished_qnames)} in total.")
+    logger.info(f"Fished {merged_qnames.shape[0]} in total.")
