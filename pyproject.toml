@@ -6,7 +6,7 @@ authors = [
     { name = "simo", email = "svm.zhang@gmail.com" }
 ]
 dependencies = [
-    "tinyscibio>=0.4.2",
+    "tinyscibio>=0.4.3",
     "mhctyper>=0.1.6",
     "pyahocorasick>=2.1.0",
 ]
