@@ -5,7 +5,7 @@ from functools import partial
 import numpy as np
 import polars as pl
 import pysam
-from tinyscibio import BAMetadata, _PathLike, bed_to_df, walk_bam
+from tinyscibio import BAMetadata, _PathLike, bed_to_df, parse_path, walk_bam
 
 from .logger import logger
 from .tag_builder import build
@@ -42,7 +42,6 @@ def _fish_multi_hla(
     logger.info(f"Fish sequence mapped to regions defined in {bed_fsapth}.")
     df = bed_to_df(bed_fsapth)
     regions = [f"{row[0]}:{row[1]}-{row[2]}" for row in df.rows()]
-    print(regions)
     nproc = min(len(regions), nproc)  # nproc set to minimum of these 2 values
     qnames: list[pl.Series] = []
     start_t = time.time()
@@ -123,16 +122,16 @@ def _split_regions(
 
 
 def run_strawlr(
-    bam_fspath: str,
+    bametadata: BAMetadata,
     tag_seq_fspath: _PathLike,
     hla_bed_fspath: _PathLike,
     prebuild_method: str = "ahocorasick",
     nproc: int = 4,
-):
+) -> pl.Series:
+    logger.info("Start to fish HLA-relevant reads.")
     prebuilt_tag = build(tag_seq_fspath, method=prebuild_method)
 
-    bametadata = BAMetadata(bam_fspath)
-
+    bam_fspath = bametadata.fspath
     fished_qnames = _fish_multi_hla(hla_bed_fspath, bam_fspath)
 
     regions = {
@@ -146,3 +145,4 @@ def run_strawlr(
     merged_qnames = pl.concat(fished_qnames).unique()
 
     logger.info(f"Fished {merged_qnames.shape[0]} in total.")
+    return merged_qnames
