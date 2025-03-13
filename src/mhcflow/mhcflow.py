@@ -3,7 +3,7 @@ from mhctyper import run_mhctyper
 from tinyscibio import BAMetadata, make_dir
 
 from .cli import parse_cmd
-from .fastq import dump_to_fastq
+from .fastq import _dispatch_qnames, dump_to_fastq
 from .logger import logger
 from .strawlr import run_strawlr
 
@@ -42,10 +42,11 @@ def run_mhcflow():
             out_fished_qnames, separator="\t"
         ).to_series()
 
-    print(fished_qnames.head())
-    print(fished_qnames.shape)
-
     # get read sequence
+    qname_batches = _dispatch_qnames(fished_qnames, out_fisher_dir, args.nproc)
+    dump_to_fastq(bametadata, qname_batches, args.nproc)
+    logger.info(qname_batches)
+    raise SystemExit
 
     # realign them using novoalign
 
