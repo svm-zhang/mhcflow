@@ -12,16 +12,16 @@ from .logger import logger
 
 
 def _extract_from_bam(
-    batch_fspath: tuple[int, Path, Path, Path, Path], bam_fspath: str
-):
+    batch_fspath: tuple[Path, Path, Path, Path], bam_fspath: str
+) -> tuple[Path, Path]:
     logger.initialize()
-    _, qname_batch_fspath, done_fspath, out_r1, out_r2 = batch_fspath
+    qname_batch_fspath, done_fspath, out_r1, out_r2 = batch_fspath
     if done_fspath.exists():
         logger.info(
             "Extraction of reads into fastq has been done "
             f"for batch {qname_batch_fspath}."
         )
-        return
+        return (out_r1, out_r2)
     qname_batch_fspath = str(qname_batch_fspath)
     try:
         cmd_1 = f"samtools view -h -N {qname_batch_fspath} {bam_fspath}"
@@ -40,9 +40,16 @@ def _extract_from_bam(
         p3.communicate()
         p1.wait()
         p2.wait()
+        if not out_r1.exists() or not out_r2.exists():
+            raise FileNotFoundError(
+                f"Failed to find fastq file(s): {out_r1} or {out_r2}."
+                f"Extraction failed for dumping qnames listed in "
+                f"{str(qname_batch_fspath)}."
+            )
         done_fspath.touch()
     except Exception as e:
         print(e)
+    return (out_r1, out_r2)
 
 
 def _dispatch_qnames(
@@ -78,7 +85,6 @@ def _dispatch_qnames(
         )
         qname_batch_fspaths.append(
             (
-                i,
                 qname_batch_fspath,
                 qname_batch_done_fspath,
                 batch_r1,
@@ -92,18 +98,12 @@ def dump_to_fastq(
     bametadata: BAMetadata,
     qname_batches: list[tuple],
     nproc: int = 1,
-) -> None:
+) -> list[tuple]:
+    fqs: list[tuple] = []
     with mp.Pool(processes=nproc) as pool:
-        for _ in pool.imap_unordered(
+        for res in pool.imap_unordered(
             partial(_extract_from_bam, bam_fspath=bametadata.fspath),
             qname_batches,
         ):
-            pass
-    for qname_batch in qname_batches:
-        batch_id, qname_batch_fspath, done_fspath, r1, r2 = qname_batch
-        if (not r1.exists() or not r2.exists()) and not done_fspath.exists():
-            raise FileNotFoundError(
-                f"Failed to find either {r1} or {r2} fastq file. "
-                f"Extraction failed for qnames in batch {batch_id}: "
-                f"{str(qname_batch_fspath)}."
-            )
+            fqs.append(res)
+    return fqs
