@@ -119,13 +119,18 @@ def _sort(bam_in: Path, bam_out: Path, nproc: int = 1) -> None:
         raise SystemExit
 
 
-# TODO: add clean param
+def _clean(fs: list[Path]) -> None:
+    for f in fs:
+        f.unlink(missing_ok=True)
+
+
 def _run_realigner(
     fished_fqs: list[tuple[Path, Path]],
     ref: Path,
     outdir: Path,
     rg,
     nproc: int = 1,
+    clean: bool = True,
 ) -> Path:
     logger.info("Realign fished reads to HLA reference.")
     # this should recover the read group info in the original BAM
@@ -155,5 +160,12 @@ def _run_realigner(
     _concat(bam_list_fspath, concat_bam)
 
     _sort(bam_in=concat_bam, bam_out=realn_bam, nproc=nproc)
+
+    if clean:
+        logger.info("Clean intermediate files.")
+        fs_to_rm = [f for task in realn_tasks for f in task]
+        fs_to_rm += bams
+        fs_to_rm += [concat_bam]
+        _clean(fs_to_rm)
     logger.info(f"Realignment result in {str(realn_bam)}")
     return realn_bam
