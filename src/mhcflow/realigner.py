@@ -7,7 +7,7 @@ from .logger import logger
 
 
 def _novoalign(
-    task: tuple[Path, Path, Path, Path, Path], nix: Path, rg: list
+    task: tuple[Path, Path, Path, Path, Path], fa: Path, rg: list
 ) -> Path:
     r1, r2, bam_out, realn_log, realn_done = task
     logger.initialize()
@@ -15,6 +15,7 @@ def _novoalign(
         logger.info(f"Realignment for {r1.name}, {r2.name} has been done.")
         return bam_out
     rg_str = "@RG\t" + "\t".join(rg)
+    nix = fa.with_suffix(".nix")
     try:
         cmd_1 = [
             "novoalign",
@@ -144,7 +145,7 @@ def _run_realigner(
     bams = []
     with mp.Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
-            partial(_novoalign, nix=ref, rg=rg), realn_tasks
+            partial(_novoalign, fa=ref, rg=rg), realn_tasks
         ):
             bams.append(res)
     concat_bam = outdir / "hla.realn.merged.bam"
