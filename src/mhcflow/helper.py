@@ -10,7 +10,9 @@ from .logger import logger
 
 @dataclass
 class FileManifest:
-    _inputs: dict[str, _PathLike] = field(default_factory=dict, init=False)
+    _inputs: dict[str, _PathLike | list[_PathLike]] = field(
+        default_factory=dict, init=False
+    )
     _outputs: dict[str, _PathLike | list[_PathLike]] = field(
         default_factory=dict, init=False
     )
@@ -18,9 +20,12 @@ class FileManifest:
     _intermediates: dict[str, _PathLike | list[_PathLike]] = field(
         default_factory=dict, init=False
     )
+    _intermediate_aux: dict[str, _PathLike | list[_PathLike]] = field(
+        default_factory=dict, init=False
+    )
 
     @property
-    def inputs(self) -> dict[str, _PathLike]:
+    def inputs(self) -> dict[str, _PathLike | list[_PathLike]]:
         return self._inputs
 
     @property
@@ -32,10 +37,14 @@ class FileManifest:
         return self._aux
 
     @property
+    def intermediate_aux(self) -> dict[str, _PathLike | list[_PathLike]]:
+        return self._intermediate_aux
+
+    @property
     def intermediates(self) -> dict[str, _PathLike | list[_PathLike]]:
         return self._intermediates
 
-    def _register_inputs(self, **kwargs: _PathLike) -> None:
+    def _register_inputs(self, **kwargs: _PathLike | list[_PathLike]) -> None:
         self._inputs.update(**kwargs)
 
     def _register_outputs(self, **kwargs: _PathLike | list[_PathLike]) -> None:
@@ -48,6 +57,11 @@ class FileManifest:
         self, **kwargs: _PathLike | list[_PathLike]
     ) -> None:
         self._intermediates.update(**kwargs)
+
+    def _register_intermediate_aux(
+        self, **kwargs: _PathLike | list[_PathLike]
+    ) -> None:
+        self._intermediate_aux.update(**kwargs)
 
     @classmethod
     def _from_json(cls, json_fspath: _PathLike) -> "FileManifest":
