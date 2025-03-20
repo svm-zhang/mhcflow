@@ -2,10 +2,11 @@ import inspect
 import json
 import shlex
 import subprocess as sp
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tinyscibio import _PathLike, parse_path
+from tinyscibio import BAMetadata, _PathLike, parse_path
 
 from .logger import logger
 
@@ -33,6 +34,10 @@ class FileManifest:
     def aux(self) -> dict[str, _PathLike]:
         return self._aux
 
+    @property
+    def intermediates(self) -> dict[str, _PathLike | list[_PathLike]]:
+        return self._intermediates
+
     def _register_inputs(self, **kwargs: _PathLike) -> None:
         self._inputs.update(**kwargs)
 
@@ -48,8 +53,13 @@ class FileManifest:
         self._intermediates.update(**kwargs)
 
     @classmethod
-    def _from_json(cls, json_fspath: _PathLike):
-        pass
+    def _from_json(cls, json_fspath: _PathLike) -> "FileManifest":
+        with open(json_fspath, "r") as f:
+            test = json.load(f)
+        fm = cls()
+        for k, v in test.items():
+            setattr(fm, f"_{k}", v)
+        return fm
 
     def _to_json(self, json_out: _PathLike) -> None:
         attrs = {}
@@ -65,6 +75,10 @@ class FileManifest:
             attrs[attr_k] = attr_v
         with open(json_out, "w") as f:
             json.dump(attrs, f)
+
+    # TODO: implement
+    def _clean(self) -> None:
+        raise NotImplementedError
 
 
 def _extract_from_bam(
@@ -102,13 +116,37 @@ def _extract_from_bam(
     return (r1, r2)
 
 
-def _clean(fs: list[Path]) -> None:
-    for f in fs:
-        f.unlink(missing_ok=True)
+def _check_rg_exists(bametadata: BAMetadata) -> None:
+    try:
+        rg = bametadata.read_groups
+        if not rg:
+            raise ValueError(
+                "Failed to find any read group information in BAM: "
+                f"{bametadata.fspath}"
+            )
+    except ValueError as e:
+        logger.error(e)
+        sys.exit(1)
 
-    # if clean:
-    #     logger.info("Clean intermediate files.")
-    #     fs_to_rm = [f for task in realn_tasks for f in task]
-    #     fs_to_rm += bams
-    #     fs_to_rm += [concat_bam]
-    #     _clean(fs_to_rm)
+
+def _check_single_rg(bametadata: BAMetadata) -> None:
+    try:
+        rg = bametadata.read_groups
+        if len(rg) > 1:
+            raise ValueError(
+                f"Found more than one read group information in BAM: {rg}"
+            )
+    except ValueError as e:
+        logger.error(e)
+        sys.exit(1)
+
+
+def _get_sm(rg: dict[str, str]) -> str:
+    try:
+        sm = rg.get("SM", None)
+        if sm is None:
+            raise ValueError(f"Failed to find SM field in read group: {rg}.")
+        return sm
+    except ValueError as e:
+        logger.error(e)
+        sys.exit(1)
