@@ -1,12 +1,28 @@
 import multiprocessing as mp
+import shutil
 import time
 from functools import partial
+from typing import Any
 
 import numpy as np
 import polars as pl
 import pysam
-from tinyscibio import BAMetadata, _PathLike, bed_to_df, parse_path, walk_bam
+from tinyscibio import (
+    BAMetadata,
+    _PathLike,
+    bed_to_df,
+    make_dir,
+    parse_path,
+    walk_bam,
+)
 
+from .helper import (
+    FileManifest,
+    _check_rg_exists,
+    _check_single_rg,
+    _extract_from_bam,
+    _get_sm,
+)
 from .logger import logger
 from .tag_builder import build
 
@@ -37,7 +53,7 @@ def _fish_one_hla(region: str, bam_fspath: str) -> pl.DataFrame:
 
 
 def _fish_multi_hla(
-    bed_fsapth: _PathLike, bam_fspath: str, nproc: int = 4
+    bed_fsapth: _PathLike, bam_fspath: _PathLike, nproc: int = 4
 ) -> list[pl.Series]:
     logger.info(f"Fish sequence mapped to regions defined in {bed_fsapth}.")
     df = bed_to_df(bed_fsapth)
@@ -47,7 +63,7 @@ def _fish_multi_hla(
     start_t = time.time()
     with mp.get_context("spawn").Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
-            partial(_fish_one_hla, bam_fspath=bam_fspath),
+            partial(_fish_one_hla, bam_fspath=str(bam_fspath)),
             regions,
         ):
             if res is not None:
@@ -121,18 +137,50 @@ def _split_regions(
     return splits
 
 
-def run_strawlr(
-    bametadata: BAMetadata,
-    tag_seq_fspath: _PathLike,
-    hla_bed_fspath: _PathLike,
+def _run_fisher(
+    bam_fspath: _PathLike,
+    tag_fspath: _PathLike,
+    bed_fspath: _PathLike,
+    outdir: _PathLike,
     prebuild_method: str = "ahocorasick",
     nproc: int = 4,
-) -> pl.Series:
+    overwrite: bool = False,
+) -> FileManifest:
     logger.info("Start to fish HLA-relevant reads.")
-    prebuilt_tag = build(tag_seq_fspath, method=prebuild_method)
+    outdir = parse_path(outdir)
+    make_dir(outdir, parents=True, exist_ok=True)
+
+    bametadata = BAMetadata(str(bam_fspath))
+    _check_rg_exists(bametadata)
+    _check_single_rg(bametadata)
+    rg = bametadata.read_groups[0]
+    sm = _get_sm(rg)
+
+    fisher_fm = FileManifest()
+    fm_json = outdir / f"{sm}.fisher.file_manifest.json"
+    if fm_json.exists():
+        # load json and check existence of done
+        if not overwrite:
+            fisher_fm = fisher_fm._from_json(fm_json)
+            fisher_done = parse_path(fisher_fm.aux.get("done", ""))
+            if fisher_done.exists():
+                logger.info(
+                    "Found done file for fisher from previous run: "
+                    f"{fisher_done}. Skip."
+                )
+                return fisher_fm
+        logger.info(
+            f"Overwrite specified. Remove results from previous run: {outdir}"
+        )
+        # TODO: implement a _clean method to FileManifest to avoid below
+        shutil.rmtree(outdir)
+        make_dir(outdir, parents=True, exist_ok=True)
+    fisher_done = outdir / f"{sm}.fisher.done"
+
+    prebuilt_tag = build(tag_fspath, method=prebuild_method)
 
     bam_fspath = bametadata.fspath
-    fished_qnames = _fish_multi_hla(hla_bed_fspath, bam_fspath)
+    fished_qnames = _fish_multi_hla(bed_fspath, bam_fspath)
 
     regions = {
         sn: [1, ln] for sn, ln in bametadata.seqmap().items() if sn in CHR6
@@ -144,5 +192,40 @@ def run_strawlr(
     fished_qnames += [_fish_unplaced(bam_fspath, prebuilt_tag)]
     merged_qnames = pl.concat(fished_qnames).unique()
 
+    # split all fished read names into batches
+    qnames_batches = np.array_split(merged_qnames.to_numpy(), nproc)
+    idxs = []
+    for i in range(len(qnames_batches)):
+        qname_batch_fspath = outdir / f"{sm}.fisher.{i}.idxs"
+        pl.DataFrame({"qnames": qnames_batches[i]}).write_csv(
+            qname_batch_fspath, include_header=False
+        )
+        idxs.append(qname_batch_fspath)
+
+    # extract reads to fastq given read names
+    r1s, r2s = [], []
+    with mp.Pool(processes=nproc) as pool:
+        for res in pool.imap_unordered(
+            partial(_extract_from_bam, bam_fspath=bametadata.fspath), idxs
+        ):
+            r1, r2 = res
+            r1s.append(r1)
+            r2s.append(r2)
     logger.info(f"Fished {merged_qnames.shape[0]} in total.")
-    return merged_qnames
+    fisher_done.touch()
+
+    logger.info("Register all relevant files to manifest.")
+    # register all relevant files to manifest
+    fisher_fm._register_inputs(
+        bam=bametadata.fspath, tag=tag_fspath, bed=bed_fspath
+    )
+    fisher_fm._register_aux(done=fisher_done)
+    fisher_fm._register_outputs(idxs=idxs)
+    fisher_fm._register_outputs(r1s=r1s, r2s=r2s)
+    fisher_fm._register_intermediate(r1s=r1s, r2s=r2s)
+    # dump manifest to disk in json format.
+    logger.info(f"Dump manifest to {fm_json}")
+    fisher_fm._register_aux(myself=fm_json)
+    fisher_fm._to_json(json_out=fm_json)
+
+    return fisher_fm
