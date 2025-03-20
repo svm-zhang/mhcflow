@@ -1,12 +1,9 @@
 import inspect
 import json
-import shlex
-import subprocess as sp
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from tinyscibio import BAMetadata, _PathLike, parse_path
+from tinyscibio import BAMetadata, _PathLike
 
 from .logger import logger
 
@@ -79,41 +76,6 @@ class FileManifest:
     # TODO: implement
     def _clean(self) -> None:
         raise NotImplementedError
-
-
-def _extract_from_bam(
-    idx_fspath: _PathLike, bam_fspath: _PathLike
-) -> tuple[Path, Path]:
-    logger.initialize()
-    idx_fspath = parse_path(idx_fspath)
-    r1 = idx_fspath.with_suffix(".R1.fastq")
-    r2 = idx_fspath.with_suffix(".R2.fastq")
-
-    if r1.exists() and r2.exists():
-        logger.info(
-            f"Found {r1} and {r2} extracted for read ids in {idx_fspath} file."
-        )
-        return (r1, r2)
-    try:
-        cmd_1 = f"samtools view -h -N {str(idx_fspath)} {str(bam_fspath)}"
-        p1 = sp.Popen(shlex.split(cmd_1), stdout=sp.PIPE)
-        cmd_2 = "samtools sort -n"
-        p2 = sp.Popen(shlex.split(cmd_2), stdin=p1.stdout, stdout=sp.PIPE)
-        cmd_3 = f"samtools fastq -n -1 {r1} -2 {r2} -0 /dev/null -s /dev/null"
-        merged_cmd = " | ".join([cmd_1, cmd_2, cmd_3])
-        logger.info(f"Extract reads into fastq using cmd: {merged_cmd}")
-        p3 = sp.Popen(
-            shlex.split(cmd_3),
-            stdin=p2.stdout,
-            stdout=sp.DEVNULL,
-            stderr=sp.DEVNULL,
-        )
-        p3.communicate()
-        p1.wait()
-        p2.wait()
-    except Exception as e:
-        print(e)
-    return (r1, r2)
 
 
 def _check_rg_exists(bametadata: BAMetadata) -> None:
