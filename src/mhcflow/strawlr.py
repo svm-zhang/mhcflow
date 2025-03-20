@@ -2,7 +2,6 @@ import multiprocessing as mp
 import shutil
 import time
 from functools import partial
-from typing import Any
 
 import numpy as np
 import polars as pl
@@ -20,10 +19,10 @@ from .helper import (
     FileManifest,
     _check_rg_exists,
     _check_single_rg,
-    _extract_from_bam,
     _get_sm,
 )
 from .logger import logger
+from .runnable import _extract_from_bam
 from .tag_builder import build
 
 CHR6 = ["6", "chr6", "NC00006", "CM000668"]
@@ -220,8 +219,7 @@ def _run_fisher(
         bam=bametadata.fspath, tag=tag_fspath, bed=bed_fspath
     )
     fisher_fm._register_aux(done=fisher_done)
-    fisher_fm._register_outputs(idxs=idxs)
-    fisher_fm._register_outputs(r1s=r1s, r2s=r2s)
+    fisher_fm._register_outputs(idxs=idxs, r1s=r1s, r2s=r2s)
     fisher_fm._register_intermediate(r1s=r1s, r2s=r2s)
     # dump manifest to disk in json format.
     logger.info(f"Dump manifest to {fm_json}")
