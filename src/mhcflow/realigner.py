@@ -1,4 +1,6 @@
+import itertools
 import multiprocessing as mp
+import shutil
 import subprocess as sp
 import sys
 from functools import partial
@@ -147,6 +149,7 @@ def _run_realigner(
     fisher_fm_json: _PathLike,
     outdir: _PathLike,
     nproc: int = 1,
+    overwrite: bool = False,
 ) -> FileManifest:
     logger.info("Realign fished reads to HLA reference.")
     bametadata = BAMetadata(bam_fspath)
@@ -160,8 +163,39 @@ def _run_realigner(
 
     realigner_fm = FileManifest()
     realigner_fm_json = outdir / f"{sm}.realinger.file_manifest.json"
+    # check json and skip entirely if all recorded done files exists
+    # otherwise; keep going
     if realigner_fm_json.exists():
-        pass
+        if not overwrite:
+            realigner_fm = FileManifest._from_json(realigner_fm_json)
+            realigner_done = parse_path(realigner_fm.aux.get("done", ""))
+            intermediate_dones = []
+            for k, v in realigner_fm.intermediate_aux.items():
+                if not k.endswith("done") and not k.endswith("dones"):
+                    continue
+                intermediate_dones += v if isinstance(v, list) else [v]
+            n_not_exists = [
+                f for f in intermediate_dones if not parse_path(f).exists()
+            ]
+            if realigner_done.exists() and not n_not_exists:
+                logger.info(
+                    "Found all done files for realigner from previous run: "
+                    f"{realigner_done}. Skip."
+                )
+                return realigner_fm
+            logger.info(
+                "Failed to skip realigner entirely."
+                "Missing either realigner done or intermediate done files."
+                f"Please check: {realigner_done}, {n_not_exists}"
+            )
+        else:
+            logger.info(
+                "Overwrite specified. "
+                f"Remove realigner results from previous run: {outdir}"
+            )
+            # TODO: need a _clean method.
+            shutil.rmtree(outdir)
+            make_dir(outdir, parents=True, exist_ok=True)
 
     realigner_done = outdir / f"{sm}.realigner.done"
 
