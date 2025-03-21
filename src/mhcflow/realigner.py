@@ -45,8 +45,8 @@ def _run_realigner(
             ]
             if realigner_done.exists() and not n_not_exists:
                 logger.info(
-                    "Found all done files for realigner from previous run: "
-                    f"{realigner_done}. Skip."
+                    "Found all done files for realigner from previous run. "
+                    "Skip."
                 )
                 return realigner_fm
             logger.info(
