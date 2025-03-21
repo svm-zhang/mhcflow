@@ -113,7 +113,7 @@ def _run_realigner(
 
     realigner_fm._register_inputs(fisher_json=fisher_fm_json, r1s=r1s, r2s=r2s)
     realigner_fm._register_outputs(realn_bam=realn_bam)
-    realigner_fm._register_aux(done=realigner_done)
+    realigner_fm._register_aux(done=realigner_done, myself=realigner_fm_json)
     realigner_fm._register_intermediate(
         bams=bams,
         concat_bam=concat_bam,
