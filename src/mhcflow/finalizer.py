@@ -10,26 +10,6 @@ from .logger import logger
 from .realigner import _run_realigner
 
 
-def _novoindex(fa: Path) -> None:
-    nix = fa.with_suffix(".nix")
-    index_log = nix.with_suffix(".novoindex.log")
-    index_done = nix.with_suffix(".novoindex.done")
-    if index_done.exists():
-        logger.info(f"Found .nix index for Fasta file: {fa}. Skip.")
-        return
-    try:
-        cmd = ["novoindex", str(nix), str(fa)]
-        with open(index_log, "w") as f:
-            f.write(f"{' '.join(cmd)}\n")
-            p = sp.Popen(cmd, stdout=f, stderr=sp.STDOUT)
-            p.communicate()
-        index_done.touch()
-    except Exception as e:
-        print(e)
-        raise SystemExit
-    return
-
-
 def dump_seq(allele: str, fa: Faidx, out: Path):
     with open(out, "a") as f:
         sequence = fa.fetch(allele, 1, fa.index[allele].rlen)
