@@ -172,3 +172,23 @@ def _sort(
     except Exception as e:
         logger.error(e)
         sys.exit(1)
+
+
+def _novoindex(fa: _PathLike) -> tuple[_PathLike, _PathLike, _PathLike]:
+    nix = parse_path(fa).with_suffix(".nix")
+    index_log = nix.with_suffix(".novoindex.log")
+    index_done = nix.with_suffix(".novoindex.done")
+    if index_done.exists():
+        logger.info(f"Found .nix index for Fasta file: {fa}. Skip.")
+        return (nix, index_log, index_done)
+    try:
+        cmd = ["novoindex", str(nix), str(fa)]
+        with open(index_log, "w") as f:
+            f.write(f"{' '.join(cmd)}\n")
+            p = sp.Popen(cmd, stdout=f, stderr=sp.STDOUT)
+            p.communicate()
+        index_done.touch()
+        return (nix, index_log, index_done)
+    except Exception as e:
+        logger.error(e)
+        sys.exit(1)
