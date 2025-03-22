@@ -1,10 +1,15 @@
 import multiprocessing as mp
-import shutil
 from functools import partial
 
 from tinyscibio import BAMetadata, _PathLike, make_dir, parse_path
 
-from .helper import FileManifest, _check_rg_exists, _check_single_rg, _get_sm
+from .helper import (
+    FileManifest,
+    _check_rg_exists,
+    _check_single_rg,
+    _get_sm,
+    _verify_prev_run,
+)
 from .logger import logger
 from .runnable import _concat, _novoalign, _sort
 
@@ -28,44 +33,20 @@ def _run_realigner(
     make_dir(outdir, parents=True, exist_ok=True)
 
     realigner_fm = FileManifest()
-    realigner_fm_json = outdir / f"{sm}.realigner.file_manifest.json"
-    # check json and skip entirely if all recorded done files exists
-    # otherwise; keep going
-    if realigner_fm_json.exists():
-        if not overwrite:
-            realigner_fm = FileManifest._from_json(realigner_fm_json)
-            realigner_done = parse_path(realigner_fm.aux.get("done", ""))
-            intermediate_dones = []
-            for k, v in realigner_fm.intermediate_aux.items():
-                if not k.endswith("done") and not k.endswith("dones"):
-                    continue
-                intermediate_dones += v if isinstance(v, list) else [v]
-            n_not_exists = [
-                f for f in intermediate_dones if not parse_path(f).exists()
-            ]
-            if realigner_done.exists() and not n_not_exists:
-                logger.info(
-                    "Found all done files for realigner from previous run. "
-                    "Skip."
-                )
-                return realigner_fm
-            logger.info(
-                "Failed to skip realigner entirely."
-                "Missing either realigner done or intermediate done files."
-                f"Please check: {realigner_done}, {n_not_exists}"
-            )
-        else:
-            logger.info(
-                "Overwrite specified. "
-                f"Remove realigner results from previous run: {outdir}"
-            )
-            # TODO: need a _clean method.
-            shutil.rmtree(outdir)
-            make_dir(outdir, parents=True, exist_ok=True)
+    fm_json = outdir / f"{sm}.realigner.file_manifest.json"
+    if fm_json.exists():
+        logger.info(
+            f"Detected file manifest from previous run: {str(fm_json)}"
+        )
+        realigner_fm = FileManifest._from_json(fm_json)
+        if _verify_prev_run(realigner_fm, overwrite):
+            return realigner_fm
 
+    realigner_fm = FileManifest()
     realigner_done = outdir / f"{sm}.realigner.done"
 
     fisher_fm_json = parse_path(fisher_fm_json)
+    # TODO:
     if not fisher_fm_json.exists():
         raise FileNotFoundError()
 
@@ -73,9 +54,11 @@ def _run_realigner(
     fisher_fm = FileManifest._from_json(fisher_fm_json)
     r1s = fisher_fm.outputs.get("r1s", [])
     r2s = fisher_fm.outputs.get("r2s", [])
+    # TODO:
     if not r1s or not r2s:
         raise FileNotFoundError()
     assert isinstance(r1s, list) and isinstance(r2s, list)
+    # TODO:
     if len(r1s) != len(r2s):
         # r1 and r2 must come in pairs
         raise ValueError()
@@ -113,7 +96,7 @@ def _run_realigner(
 
     realigner_fm._register_inputs(fisher_json=fisher_fm_json, r1s=r1s, r2s=r2s)
     realigner_fm._register_outputs(realn_bam=realn_bam)
-    realigner_fm._register_aux(done=realigner_done, myself=realigner_fm_json)
+    realigner_fm._register_aux(done=realigner_done, myself=fm_json)
     realigner_fm._register_intermediate(
         bams=bams,
         concat_bam=concat_bam,
@@ -127,5 +110,5 @@ def _run_realigner(
         sort_log=sort_log,
         sort_done=sort_done,
     )
-    realigner_fm._to_json(realigner_fm_json)
+    realigner_fm._to_json(fm_json)
     return realigner_fm
