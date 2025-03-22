@@ -1,5 +1,4 @@
 import multiprocessing as mp
-import shutil
 import time
 from functools import partial
 
@@ -20,6 +19,7 @@ from .helper import (
     _check_rg_exists,
     _check_single_rg,
     _get_sm,
+    _verify_prev_run,
 )
 from .logger import logger
 from .runnable import _extract_from_bam
@@ -28,11 +28,22 @@ from .tag_builder import build
 CHR6 = ["6", "chr6", "NC00006", "CM000668"]
 
 
-def _fish_unplaced(bam_fspath, prebuilt_tag) -> pl.Series:
+def _fish_unplaced(
+    bam_fspath: _PathLike, prebuilt_tag, out: _PathLike
+) -> tuple[pl.DataFrame, _PathLike]:
     logger.info("Fish unplaced sequence with tag pattern")
+    out = parse_path(out)
+    done = out.with_suffix(".done")
+    if done.exists():
+        logger.info(
+            "Found result of fished sequences with tag pattern "
+            f"from previous run: {done}. Skip."
+        )
+        df = pl.read_csv(out, separator="\t")
+        return (df, done)
     qnames = []
     start_t = time.time()
-    with pysam.AlignmentFile(bam_fspath, "rb") as bamf:
+    with pysam.AlignmentFile(str(bam_fspath), "rb") as bamf:
         for aln in bamf.fetch(until_eof=True):
             if not aln.is_unmapped:
                 continue
@@ -44,7 +55,12 @@ def _fish_unplaced(bam_fspath, prebuilt_tag) -> pl.Series:
         f"Fish unplaced sequence with tag pattern: {time.time() - start_t} sec"
     )
     logger.info(f"Fished {len(qnames)} unplaced sequence with tag pattern")
-    return pl.Series("qnames", qnames)
+    merged_qnames = (
+        pl.DataFrame({"qnames": qnames}) if qnames else pl.DataFrame()
+    )
+    merged_qnames.write_csv(out, separator="\t")
+    done.touch()
+    return merged_qnames, done
 
 
 def _fish_one_hla(region: str, bam_fspath: str) -> pl.DataFrame:
@@ -52,13 +68,25 @@ def _fish_one_hla(region: str, bam_fspath: str) -> pl.DataFrame:
 
 
 def _fish_multi_hla(
-    bed_fsapth: _PathLike, bam_fspath: _PathLike, nproc: int = 4
-) -> list[pl.Series]:
+    bed_fsapth: _PathLike,
+    bam_fspath: _PathLike,
+    out: _PathLike,
+    nproc: int = 4,
+) -> tuple[pl.DataFrame, _PathLike]:
     logger.info(f"Fish sequence mapped to regions defined in {bed_fsapth}.")
+    out = parse_path(out)
+    done = out.with_suffix(".done")
+    if done.exists():
+        logger.info(
+            "Found result of fished sequences with tag pattern "
+            f"from previous run: {done}. Skip."
+        )
+        df = pl.read_csv(out, separator="\t")
+        return (df, done)
     df = bed_to_df(bed_fsapth)
     regions = [f"{row[0]}:{row[1]}-{row[2]}" for row in df.rows()]
     nproc = min(len(regions), nproc)  # nproc set to minimum of these 2 values
-    qnames: list[pl.Series] = []
+    qnames: list[pl.DataFrame] = []
     start_t = time.time()
     with mp.get_context("spawn").Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
@@ -66,7 +94,7 @@ def _fish_multi_hla(
             regions,
         ):
             if res is not None:
-                qnames += [res["qnames"]]
+                qnames += [res.select("qnames")]
     logger.info(
         "Fished sequence mapped to regions defined in BED file: "
         f"{time.time() - start_t} sec."
@@ -74,10 +102,13 @@ def _fish_multi_hla(
     logger.info(
         f"Fished {len(qnames)} mapped to HLA regions defined in BED file"
     )
-    return qnames
+    merged_qnames = pl.concat(qnames) if qnames else pl.DataFrame()
+    merged_qnames.write_csv(out, separator="\t")
+    done.touch()
+    return (merged_qnames, done)
 
 
-def _fish_one_region(region, bam_fspath, prebuilt_tag) -> pl.Series | None:
+def _fish_one_region(region, bam_fspath, prebuilt_tag) -> pl.DataFrame | None:
     qnames = []
     sn, start, end = region
     with pysam.AlignmentFile(str(bam_fspath), "rb") as bamf:
@@ -86,18 +117,28 @@ def _fish_one_region(region, bam_fspath, prebuilt_tag) -> pl.Series | None:
             match = list(prebuilt_tag.iter(aln.query_sequence))
             if match:
                 qnames += [aln.query_name]
-    return pl.Series("qnames", qnames) if qnames else None
+    return pl.DataFrame({"qnames": qnames}) if qnames else None
 
 
 def _fish_multi_regions(
     split_regions: list[tuple[str | int]],
-    bam_fspath,
+    bam_fspath: _PathLike,
     prebuilt_tag,
+    out: _PathLike,
     nproc: int = 4,
-) -> list[pl.Series]:
+) -> tuple[pl.DataFrame, _PathLike]:
     logger.info("Fish sequence with tag pattern.")
+    out = parse_path(out)
+    done = out.with_suffix(".done")
+    if done.exists():
+        logger.info(
+            "Found result of fished sequences with tag pattern "
+            f"from previous run: {done}. Skip."
+        )
+        df = pl.read_csv(out, separator="\t")
+        return (df, done)
     start_t = time.time()
-    qnames: list[pl.Series] = []
+    qnames: list[pl.DataFrame] = []
     with mp.Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
             partial(
@@ -111,7 +152,12 @@ def _fish_multi_regions(
                 qnames += [res]
     logger.info(f"Fish sequence with tag pattern: {time.time() - start_t} sec")
     logger.info(f"Fished {len(qnames)} sequences with tag pattern.")
-    return qnames
+    # merged_qnames will be empty dataframe if there were no df returned
+    merged_qnames = pl.concat(qnames) if qnames else pl.DataFrame()
+    # empty file will be generated when merged_qnames is empty df
+    merged_qnames.write_csv(out, separator="\t")
+    done.touch()
+    return (merged_qnames, done)
 
 
 def _split_regions(
@@ -155,44 +201,47 @@ def _run_fisher(
     rg = bametadata.read_groups[0]
     sm = _get_sm(rg)
 
-    fisher_fm = FileManifest()
     fm_json = outdir / f"{sm}.fisher.file_manifest.json"
     if fm_json.exists():
-        # load json and check existence of done
-        if not overwrite:
-            fisher_fm = fisher_fm._from_json(fm_json)
-            fisher_done = parse_path(fisher_fm.aux.get("done", ""))
-            if fisher_done.exists():
-                logger.info(
-                    "Found done file for fisher from previous run: "
-                    f"{fisher_done}. Skip."
-                )
-                return fisher_fm
         logger.info(
-            f"Overwrite specified. Remove results from previous run: {outdir}"
+            f"Detected file manifest from previous run: {str(fm_json)}"
         )
-        # TODO: implement a _clean method to FileManifest to avoid below
-        shutil.rmtree(outdir)
-        make_dir(outdir, parents=True, exist_ok=True)
+        fisher_fm = FileManifest._from_json(fm_json)
+        if _verify_prev_run(fisher_fm, overwrite):
+            return fisher_fm
+
+    fisher_fm = FileManifest()
     fisher_done = outdir / f"{sm}.fisher.done"
 
     prebuilt_tag = build(tag_fspath, method=prebuild_method)
 
     bam_fspath = bametadata.fspath
-    fished_qnames = _fish_multi_hla(bed_fspath, bam_fspath)
+    hla_qname_out = outdir / f"{sm}.fisher.hla_bed.idx"
+    hla_bed_qnames, hla_bed_done = _fish_multi_hla(
+        bed_fspath, bam_fspath, hla_qname_out
+    )
 
     regions = {
         sn: [1, ln] for sn, ln in bametadata.seqmap().items() if sn in CHR6
     }
     splits = _split_regions(regions, n_splits=nproc, by="num")
-    fished_qnames += _fish_multi_regions(
-        splits, bam_fspath, prebuilt_tag, nproc
+    chr6_qname_out = outdir / f"{sm}.fisher.chr6.idx"
+    chr6_qnames, chr6_done = _fish_multi_regions(
+        splits, bam_fspath, prebuilt_tag, chr6_qname_out, nproc
     )
-    fished_qnames += [_fish_unplaced(bam_fspath, prebuilt_tag)]
-    merged_qnames = pl.concat(fished_qnames).unique()
+    unplaced_qname_out = outdir / f"{sm}.fisher.unplaced.idx"
+    unplaced_qnames, unplaced_done = _fish_unplaced(
+        bam_fspath, prebuilt_tag, unplaced_qname_out
+    )
+
+    merged_qnames = pl.concat(
+        [hla_bed_qnames, chr6_qnames, unplaced_qnames]
+    ).unique()
+    fisher_idx_out = outdir / f"{sm}.fisher.idx.final.tsv"
+    merged_qnames.write_csv(fisher_idx_out, separator="\t")
 
     # split all fished read names into batches
-    qnames_batches = np.array_split(merged_qnames.to_numpy(), nproc)
+    qnames_batches = np.array_split(merged_qnames["qnames"].to_numpy(), nproc)
     idxs = []
     for i in range(len(qnames_batches)):
         qname_batch_fspath = outdir / f"{sm}.fisher.{i}.idxs"
@@ -203,13 +252,15 @@ def _run_fisher(
 
     # extract reads to fastq given read names
     r1s, r2s = [], []
+    dones = []
     with mp.Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
             partial(_extract_from_bam, bam_fspath=bametadata.fspath), idxs
         ):
-            r1, r2 = res
+            r1, r2, done = res
             r1s.append(r1)
             r2s.append(r2)
+            dones.append(done)
     logger.info(f"Fished {merged_qnames.shape[0]} in total.")
     fisher_done.touch()
 
@@ -218,12 +269,29 @@ def _run_fisher(
     fisher_fm._register_inputs(
         bam=bametadata.fspath, tag=tag_fspath, bed=bed_fspath
     )
-    fisher_fm._register_aux(done=fisher_done)
-    fisher_fm._register_outputs(idxs=idxs, r1s=r1s, r2s=r2s)
-    fisher_fm._register_intermediate(r1s=r1s, r2s=r2s)
+    fisher_fm._register_aux(done=fisher_done, myself=fm_json)
+    fisher_fm._register_outputs(
+        idxs=idxs,
+        r1s=r1s,
+        r2s=r2s,
+        hla_fished_idx=hla_qname_out,
+        chr6_fished_idx=chr6_qname_out,
+        unplaced_fished_idx=unplaced_qname_out,
+        fished_all_idx=fisher_idx_out,
+    )
+    fisher_fm._register_intermediate(
+        idxs=idxs,
+        r1s=r1s,
+        r2s=r2s,
+    )
+    fisher_fm._register_intermediate_aux(
+        dones=dones,
+        hla_bed_done=hla_bed_done,
+        chr6_done=chr6_done,
+        unplaced_done=unplaced_done,
+    )
     # dump manifest to disk in json format.
     logger.info(f"Dump manifest to {fm_json}")
-    fisher_fm._register_aux(myself=fm_json)
     fisher_fm._to_json(json_out=fm_json)
 
     return fisher_fm
