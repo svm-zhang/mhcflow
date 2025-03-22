@@ -48,7 +48,7 @@ def parse_cmd() -> argparse.ArgumentParser:
         help="specify path to output folder.",
     )
     parser.add_argument(
-        "--min_ecnt",
+        "--min-ecnt",
         metavar="INT",
         type=int,
         default=999,
@@ -63,6 +63,11 @@ def parse_cmd() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="specify to overwrite scores."
+    )
+    parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="specify to NOT clean intermediate files.",
     )
     parser.add_argument(
         "--debug", action="store_true", help="specify to enter debug mode."
