@@ -1,58 +1,72 @@
-import polars as pl
 from mhctyper import run_mhctyper
-from tinyscibio import BAMetadata, make_dir
+from tinyscibio import make_dir, parse_path
 
 from .cli import parse_cmd
-from .fastq import _dispatch_qnames, dump_to_fastq
+from .finalizer import _run_finalizer
+from .helper import FileManifest
 from .logger import logger
-from .strawlr import run_strawlr
+from .realigner import _run_realigner
+from .strawlr import _run_fisher
 
 
 def run_mhcflow():
     parser = parse_cmd()
     args = parser.parse_args()
-
     logger.initialize()
     make_dir(args.outdir, parents=True, exist_ok=True)
 
-    bametadata = BAMetadata(args.bam)
-    rg = bametadata.read_groups
-    if not rg:
-        raise ValueError("Failed to find any read group information in BAM.")
-    if len(rg) > 1:
-        raise ValueError("Found more than one read group information in BAM.")
-    sm = bametadata.read_groups[0].get("SM", None)
-    if sm is None:
-        raise ValueError(f"Failed to find SM field in read group {rg}.")
-    logger.info(sm)
+    ref = args.ref.with_suffix(".nix")
+    if not ref.exists():
+        raise FileNotFoundError(
+            f"Failed to find HLA reference novoalign index file: {ref}"
+        )
 
     out_fisher_dir = args.outdir / "fisher"
-    make_dir(out_fisher_dir, parents=True, exist_ok=True)
-    out_fished_qnames = out_fisher_dir / f"{sm}.fished.ids.txt"
-    if not out_fished_qnames.exists():
-        # run strawlr to get read ids
-        fished_qnames = run_strawlr(bametadata, args.tag, args.bed)
-        fished_qnames.to_frame().write_csv(out_fished_qnames, separator="\t")
-    else:
-        logger.info(
-            "Found results of fished reads from previous run: "
-            f"{out_fished_qnames}"
-        )
-        fished_qnames = pl.read_csv(
-            out_fished_qnames, separator="\t"
-        ).to_series()
+    fisher_fm = _run_fisher(
+        args.bam,
+        args.tag,
+        args.bed,
+        out_fisher_dir,
+        nproc=args.nproc,
+        overwrite=args.overwrite,
+    )
+    fisher_fm_json = fisher_fm.aux.get("myself", "")
 
-    # get read sequence
-    qname_batches = _dispatch_qnames(fished_qnames, out_fisher_dir, args.nproc)
-    dump_to_fastq(bametadata, qname_batches, args.nproc)
-    logger.info(qname_batches)
-    raise SystemExit
+    out_realn_dir = args.outdir / "realigner"
+    realigner_fm = _run_realigner(
+        args.bam, args.ref, fisher_fm_json, out_realn_dir, args.nproc
+    )
 
-    # realign them using novoalign
+    realn_bam = realigner_fm.outputs.get("realn_bam", "")
+    assert isinstance(realn_bam, str)
+    typer_dir = args.outdir / "typer"
+    _, typer_res_fspath = run_mhctyper(
+        bam=parse_path(realn_bam),
+        freq=args.freq,
+        outdir=typer_dir,
+        min_ecnt=args.min_ecnt,
+        nproc=args.nproc,
+        debug=args.debug,
+        overwrite=args.overwrite,
+    )
 
-    # call mhctyper
-    # FIXME: update mhctyper to also make it library
-    # run_mhctyper()
+    finalizer_dir = args.outdir / "finalizer"
+    finalizer_fm = _run_finalizer(
+        args.bam,
+        args.ref,
+        fisher_fm_json,
+        typer_res_fspath,
+        finalizer_dir,
+        nproc=args.nproc,
+        overwrite=args.overwrite,
+    )
 
-    # get result and finalize
-    pass
+    if not args.no_clean:
+        logger.info("Clean intermediate files.")
+        finalizer_fm._clean_attr("intermediates")
+        realigner_fm_json = finalizer_fm.intermediate_aux.get("realn_json", "")
+        assert isinstance(realigner_fm_json, str)
+        finalizer_realn_fm = FileManifest._from_json(realigner_fm_json)
+        finalizer_realn_fm._clean_attr("intermediates")
+        realigner_fm._clean_attr("intermediates")
+        fisher_fm._clean_attr("intermediates")
