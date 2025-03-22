@@ -10,17 +10,19 @@ from .logger import logger
 
 def _extract_from_bam(
     idx_fspath: _PathLike, bam_fspath: _PathLike
-) -> tuple[Path, Path]:
-    logger.initialize()
+) -> tuple[_PathLike, _PathLike, _PathLike]:
     idx_fspath = parse_path(idx_fspath)
+    idx_done = idx_fspath.with_suffix(".done")
     r1 = idx_fspath.with_suffix(".R1.fastq")
     r2 = idx_fspath.with_suffix(".R2.fastq")
-
-    if r1.exists() and r2.exists():
+    logger.initialize()
+    if idx_done.exists():
         logger.info(
-            f"Found {r1} and {r2} extracted for read ids in {idx_fspath} file."
+            "Found extraction done file from previous run: "
+            f"{idx_fspath.name}. Skip."
         )
-        return (r1, r2)
+        return (r1, r2, idx_done)
+
     try:
         cmd_1 = f"samtools view -h -N {str(idx_fspath)} {str(bam_fspath)}"
         p1 = sp.Popen(shlex.split(cmd_1), stdout=sp.PIPE)
@@ -38,9 +40,11 @@ def _extract_from_bam(
         p3.communicate()
         p1.wait()
         p2.wait()
+        idx_done.touch()
     except Exception as e:
-        print(e)
-    return (r1, r2)
+        logger.error(e)
+        sys.exit(1)
+    return (r1, r2, idx_done)
 
 
 def _novoalign(
