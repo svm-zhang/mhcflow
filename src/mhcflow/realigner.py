@@ -32,7 +32,6 @@ def _run_realigner(
     outdir = parse_path(outdir)
     make_dir(outdir, parents=True, exist_ok=True)
 
-    realigner_fm = FileManifest()
     fm_json = outdir / f"{sm}.realigner.file_manifest.json"
     if fm_json.exists():
         logger.info(
@@ -46,31 +45,45 @@ def _run_realigner(
     realigner_done = outdir / f"{sm}.realigner.done"
 
     fisher_fm_json = parse_path(fisher_fm_json)
-    # TODO:
+    # this makes sure file manifest from fisher exists
     if not fisher_fm_json.exists():
-        raise FileNotFoundError()
+        raise FileNotFoundError(
+            f"Failed to find file manifest from fisher: {fisher_fm_json}"
+        )
 
     # getting relevant outputs from fisher step.
     fisher_fm = FileManifest._from_json(fisher_fm_json)
     r1s = fisher_fm.outputs.get("r1s", [])
     r2s = fisher_fm.outputs.get("r2s", [])
-    # TODO:
-    if not r1s or not r2s:
-        raise FileNotFoundError()
     assert isinstance(r1s, list) and isinstance(r2s, list)
-    # TODO:
+    # this makes sure there are R1 and R2 paths specified in the file manifest
+    if not r1s or not r2s:
+        raise ValueError(
+            "Failed to read either R1 or R2 fastqs from fisher file manifest: "
+            f"{fisher_fm_json}. Check the outputs section in that file."
+        )
     if len(r1s) != len(r2s):
         # r1 and r2 must come in pairs
-        raise ValueError()
+        raise ValueError(
+            "Failed to confirm R1 and R2 fastqs specified "
+            "in file manifest are in pairs."
+        )
+    exist_r1s = [f for f in r1s if parse_path(f).exists()]
+    exist_r2s = [f for f in r2s if parse_path(f).exists()]
+    # this makes sure specified fastqs do exist on disk.
+    # TODO: re-dump fastqs if possible.
+    if len(r1s) != len(exist_r1s) or len(r1s) != len(exist_r2s):
+        raise FileNotFoundError(
+            "Failed to find some R1 and R2 fastqs at the given paths. "
+            "Please re-run the fisher step, and try again."
+        )
 
     realn_tasks = []
     for i in range(len(r1s)):
         split_bam_out = outdir / f"{sm}.hla.realn.{i}.bam"
         r1, r2 = r1s[i], r2s[i]
         realn_tasks.append((r1, r2, split_bam_out))
-    bams = []
-    logs = []
-    dones = []
+    bams, logs, dones = [], [], []
     with mp.Pool(processes=nproc) as pool:
         for res in pool.imap_unordered(
             partial(_novoalign, fa=ref, rg=rg), realn_tasks
