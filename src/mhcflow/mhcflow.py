@@ -3,7 +3,6 @@ from tinyscibio import make_dir, parse_path
 
 from .cli import parse_cmd
 from .finalizer import _run_finalizer
-from .helper import FileManifest
 from .logger import logger
 from .realigner import _run_realigner
 from .strawlr import _run_fisher
@@ -13,6 +12,8 @@ def run_mhcflow():
     parser = parse_cmd()
     args = parser.parse_args()
     logger.initialize()
+    logger.info("Start running mhcflow.")
+
     make_dir(args.outdir, parents=True, exist_ok=True)
 
     ref = args.ref.with_suffix(".nix")
@@ -64,9 +65,6 @@ def run_mhcflow():
     if not args.no_clean:
         logger.info("Clean intermediate files.")
         finalizer_fm._clean_attr("intermediates")
-        realigner_fm_json = finalizer_fm.intermediate_aux.get("realn_json", "")
-        assert isinstance(realigner_fm_json, str)
-        finalizer_realn_fm = FileManifest._from_json(realigner_fm_json)
-        finalizer_realn_fm._clean_attr("intermediates")
         realigner_fm._clean_attr("intermediates")
         fisher_fm._clean_attr("intermediates")
+    logger.info("Finished running mhcflow.")
