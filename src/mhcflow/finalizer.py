@@ -51,7 +51,9 @@ def _run_finalizer(
             return finalizer_fm
 
     finalizer_fm = FileManifest()
-    finalizer_done = outdir / f"{sm}.finalizer.done"
+    logdir = outdir / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    finalizer_done = logdir / f"{sm}.finalizer.done"
 
     ref = parse_path(ref)
     fai = ref.parent / parse_path(f"{ref.name}.fai")

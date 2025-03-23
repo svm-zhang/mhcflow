@@ -43,7 +43,9 @@ def _run_realigner(
             return realigner_fm
 
     realigner_fm = FileManifest()
-    realigner_done = outdir / f"{sm}.realigner.done"
+    logdir = outdir / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    realigner_done = logdir / f"{sm}.realigner.done"
 
     fisher_fm_json = parse_path(fisher_fm_json)
     # this makes sure file manifest from fisher exists

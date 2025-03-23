@@ -67,8 +67,10 @@ def _novoalign(
     r1 = parse_path(r1)
     r2 = parse_path(r2)
     bam_out = parse_path(bam_out)
-    realn_log = bam_out.with_suffix(".log")
-    realn_done = bam_out.with_suffix(".done")
+    logdir = bam_out.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    realn_done = logdir / f"{bam_out.stem}.done"
+    realn_log = logdir / f"{bam_out.stem}.log"
     logger.initialize()
     if realn_done.exists():
         logger.info(f"Realignment for {r1.name}, {r2.name} has been done.")
@@ -125,8 +127,10 @@ def _concat(
 ) -> tuple[_PathLike, _PathLike, _PathLike]:
     logger.info("Concatenate individual bam files.")
     bam_out = parse_path(bam_out)
-    cat_log = bam_out.with_suffix(".log")
-    cat_done = bam_out.with_suffix(".done")
+    logdir = bam_out.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    cat_done = logdir / f"{bam_out.stem}.done"
+    cat_log = logdir / f"{bam_out.stem}.log"
     if cat_done.exists():
         logger.info(
             "Found concatenated realigned BAM file from "
@@ -159,8 +163,10 @@ def _sort(
     bam_in = parse_path(bam_in)
     bam_out = parse_path(bam_out)
     bai = bam_out.with_suffix(".bam.bai")
-    sort_log = bam_out.with_suffix(".sort.log")
-    sort_done = bam_out.with_suffix(".sort.done")
+    logdir = bam_out.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    sort_done = logdir / f"{bam_out.stem}.done"
+    sort_log = logdir / f"{bam_out.stem}.log"
     logger.info(f"Sort concatenated BAM file: {bam_in.name}.")
     if sort_done.exists():
         logger.info(
@@ -192,8 +198,10 @@ def _sort(
 def _novoindex(fa: _PathLike) -> tuple[_PathLike, _PathLike, _PathLike]:
     logger.info(f"Index Fasta using novoindex: {fa}")
     nix = parse_path(fa).with_suffix(".nix")
-    index_log = nix.with_suffix(".novoindex.log")
-    index_done = nix.with_suffix(".novoindex.done")
+    logdir = nix.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    index_done = logdir / f"{nix.stem}.novoindex.done"
+    index_log = logdir / f"{nix.stem}.novoindex.log"
     if index_done.exists():
         logger.info(f"Found .nix index for Fasta file: {fa}. Skip.")
         return (nix, index_log, index_done)
