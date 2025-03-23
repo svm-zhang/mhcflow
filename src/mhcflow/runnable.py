@@ -179,6 +179,7 @@ def _sort(
 
 
 def _novoindex(fa: _PathLike) -> tuple[_PathLike, _PathLike, _PathLike]:
+    logger.info(f"Index Fasta using novoindex: {fa}")
     nix = parse_path(fa).with_suffix(".nix")
     index_log = nix.with_suffix(".novoindex.log")
     index_done = nix.with_suffix(".novoindex.done")

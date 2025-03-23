@@ -167,9 +167,7 @@ def _verify_prev_run(fm: FileManifest, overwrite: bool = False) -> bool:
     ]
     not_exists += [done] if not done.exists() else []
     if not not_exists:
-        logger.info(
-            "Verified all done files for fisher from previous run. Skip."
-        )
+        logger.info("Verified all done files from previous run. Skip.")
         return True
     logger.info(
         "Failed to verify previous run due to missing some done files: "
