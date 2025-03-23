@@ -14,6 +14,7 @@ from tinyscibio import (
     walk_bam,
 )
 
+from .dumper import _bam2fq_from_idx
 from .helper import (
     FileManifest,
     _check_rg_exists,
@@ -22,7 +23,6 @@ from .helper import (
     _verify_prev_run,
 )
 from .logger import logger
-from .runnable import _extract_from_bam
 from .tag_builder import build
 
 CHR6 = ["6", "chr6", "NC00006", "CM000668"]
@@ -33,7 +33,9 @@ def _fish_unplaced(
 ) -> tuple[pl.DataFrame, _PathLike]:
     logger.info("Fish unplaced sequence with tag pattern")
     out = parse_path(out)
-    done = out.with_suffix(".done")
+    logdir = out.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    done = logdir / f"{out.stem}.done"
     if done.exists():
         logger.info(
             "Found result of fished sequences with tag pattern "
@@ -75,7 +77,9 @@ def _fish_multi_hla(
 ) -> tuple[pl.DataFrame, _PathLike]:
     logger.info(f"Fish sequence mapped to regions defined in {bed_fsapth}.")
     out = parse_path(out)
-    done = out.with_suffix(".done")
+    logdir = out.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    done = logdir / f"{out.stem}.done"
     if done.exists():
         logger.info(
             "Found result of fished sequences with tag pattern "
@@ -129,7 +133,9 @@ def _fish_multi_regions(
 ) -> tuple[pl.DataFrame, _PathLike]:
     logger.info("Fish sequence with tag pattern.")
     out = parse_path(out)
-    done = out.with_suffix(".done")
+    logdir = out.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    done = logdir / f"{out.stem}.done"
     if done.exists():
         logger.info(
             "Found result of fished sequences with tag pattern "
@@ -204,14 +210,16 @@ def _run_fisher(
     fm_json = outdir / f"{sm}.fisher.file_manifest.json"
     if fm_json.exists():
         logger.info(
-            f"Detected file manifest from previous run: {str(fm_json)}"
+            f"Detected file manifest from previous fisher run: {str(fm_json)}"
         )
         fisher_fm = FileManifest._from_json(fm_json)
         if _verify_prev_run(fisher_fm, overwrite):
             return fisher_fm
 
     fisher_fm = FileManifest()
-    fisher_done = outdir / f"{sm}.fisher.done"
+    logdir = outdir / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    fisher_done = logdir / f"{sm}.fisher.done"
 
     prebuilt_tag = build(tag_fspath, method=prebuild_method)
 
@@ -240,27 +248,8 @@ def _run_fisher(
     fisher_idx_out = outdir / f"{sm}.fisher.idx.final.tsv"
     merged_qnames.write_csv(fisher_idx_out, separator="\t")
 
-    # split all fished read names into batches
-    qnames_batches = np.array_split(merged_qnames["qnames"].to_numpy(), nproc)
-    idxs = []
-    for i in range(len(qnames_batches)):
-        qname_batch_fspath = outdir / f"{sm}.fisher.{i}.idxs"
-        pl.DataFrame({"qnames": qnames_batches[i]}).write_csv(
-            qname_batch_fspath, include_header=False
-        )
-        idxs.append(qname_batch_fspath)
+    dumper_fm = _bam2fq_from_idx(fisher_idx_out, bametadata, outdir, nproc)
 
-    # extract reads to fastq given read names
-    r1s, r2s = [], []
-    dones = []
-    with mp.Pool(processes=nproc) as pool:
-        for res in pool.imap_unordered(
-            partial(_extract_from_bam, bam_fspath=bametadata.fspath), idxs
-        ):
-            r1, r2, done = res
-            r1s.append(r1)
-            r2s.append(r2)
-            dones.append(done)
     logger.info(f"Fished {merged_qnames.shape[0]} in total.")
     fisher_done.touch()
 
@@ -271,21 +260,16 @@ def _run_fisher(
     )
     fisher_fm._register_aux(done=fisher_done, myself=fm_json)
     fisher_fm._register_outputs(
-        idxs=idxs,
-        r1s=r1s,
-        r2s=r2s,
+        **dumper_fm.outputs,
         hla_fished_idx=hla_qname_out,
         chr6_fished_idx=chr6_qname_out,
         unplaced_fished_idx=unplaced_qname_out,
         fished_all_idx=fisher_idx_out,
     )
-    fisher_fm._register_intermediate(
-        idxs=idxs,
-        r1s=r1s,
-        r2s=r2s,
-    )
+    fisher_fm._register_intermediate(**dumper_fm.outputs)
     fisher_fm._register_intermediate_aux(
-        dones=dones,
+        **dumper_fm.intermediate_aux,
+        **dumper_fm.aux,
         hla_bed_done=hla_bed_done,
         chr6_done=chr6_done,
         unplaced_done=unplaced_done,
