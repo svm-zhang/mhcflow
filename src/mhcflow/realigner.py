@@ -3,6 +3,7 @@ from functools import partial
 
 from tinyscibio import BAMetadata, _PathLike, make_dir, parse_path
 
+from .dumper import _bam2fq_from_idx
 from .helper import (
     FileManifest,
     _check_rg_exists,
@@ -71,11 +72,16 @@ def _run_realigner(
     exist_r1s = [f for f in r1s if parse_path(f).exists()]
     exist_r2s = [f for f in r2s if parse_path(f).exists()]
     # this makes sure specified fastqs do exist on disk.
-    # TODO: re-dump fastqs if possible.
     if len(r1s) != len(exist_r1s) or len(r1s) != len(exist_r2s):
-        raise FileNotFoundError(
+        logger.info(
             "Failed to find some R1 and R2 fastqs at the given paths. "
-            "Please re-run the fisher step, and try again."
+        )
+        logger.info("Attempt to recover by re-generating required fastqs.")
+        fished_idx_fspath = fisher_fm.outputs.get("fished_all_idx", "")
+        assert isinstance(fished_idx_fspath, str)
+        fisher_outdir = parse_path(fished_idx_fspath).parent
+        _ = _bam2fq_from_idx(
+            fished_idx_fspath, bametadata, fisher_outdir, nproc, overwrite=True
         )
 
     realn_tasks = []
