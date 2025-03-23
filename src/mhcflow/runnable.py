@@ -1,7 +1,6 @@
 import shlex
 import subprocess as sp
 import sys
-from pathlib import Path
 
 from tinyscibio import _PathLike, parse_path
 
@@ -13,6 +12,7 @@ def _extract_from_bam(
 ) -> tuple[_PathLike, _PathLike, _PathLike]:
     idx_fspath = parse_path(idx_fspath)
     idx_done = idx_fspath.with_suffix(".done")
+    idx_log = idx_fspath.with_suffix(".log")
     r1 = idx_fspath.with_suffix(".R1.fastq")
     r2 = idx_fspath.with_suffix(".R2.fastq")
     logger.initialize()
@@ -24,22 +24,31 @@ def _extract_from_bam(
         return (r1, r2, idx_done)
 
     try:
-        cmd_1 = f"samtools view -h -N {str(idx_fspath)} {str(bam_fspath)}"
-        p1 = sp.Popen(shlex.split(cmd_1), stdout=sp.PIPE)
-        cmd_2 = "samtools sort -n"
-        p2 = sp.Popen(shlex.split(cmd_2), stdin=p1.stdout, stdout=sp.PIPE)
-        cmd_3 = f"samtools fastq -n -1 {r1} -2 {r2} -0 /dev/null -s /dev/null"
-        merged_cmd = " | ".join([cmd_1, cmd_2, cmd_3])
-        logger.info(f"Extract reads into fastq using cmd: {merged_cmd}")
-        p3 = sp.Popen(
-            shlex.split(cmd_3),
-            stdin=p2.stdout,
-            stdout=sp.DEVNULL,
-            stderr=sp.DEVNULL,
+        logger.info(
+            f"Extract reads given {idx_fspath.name} to {r1.name} {r2.name}"
         )
-        p3.communicate()
-        p1.wait()
-        p2.wait()
+        with open(idx_log, "a") as f:
+            cmd_1 = f"samtools view -h -N {str(idx_fspath)} {str(bam_fspath)}"
+            cmd_2 = "samtools sort -n"
+            cmd_3 = (
+                f"samtools fastq -n -1 {r1} -2 {r2} -0 /dev/null -s /dev/null"
+            )
+            cmd_str = " | ".join([cmd_1, cmd_2, cmd_3])
+            f.write(f"{cmd_str}\n")
+            p1 = sp.Popen(shlex.split(cmd_1), stdout=sp.PIPE, stderr=f)
+            p2 = sp.Popen(
+                shlex.split(cmd_2), stdin=p1.stdout, stdout=sp.PIPE, stderr=f
+            )
+            p3 = sp.Popen(
+                shlex.split(cmd_3),
+                stdin=p2.stdout,
+                stdout=f,
+                stderr=sp.STDOUT,
+            )
+            p3.communicate()
+            p1.wait()
+            p2.wait()
+
         idx_done.touch()
     except Exception as e:
         logger.error(e)
