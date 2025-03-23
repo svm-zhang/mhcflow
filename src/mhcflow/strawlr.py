@@ -157,7 +157,9 @@ def _fish_multi_regions(
             if res is not None:
                 qnames += [res]
     logger.info(f"Fish sequence with tag pattern: {time.time() - start_t} sec")
-    logger.info(f"Fished {len(qnames)} sequences with tag pattern.")
+    logger.info(
+        f"Fished {sum([df.shape[0] for df in qnames])} readss with tag pattern."
+    )
     # merged_qnames will be empty dataframe if there were no df returned
     merged_qnames = pl.concat(qnames) if qnames else pl.DataFrame()
     # empty file will be generated when merged_qnames is empty df
