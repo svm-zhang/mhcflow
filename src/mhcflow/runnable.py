@@ -2,17 +2,19 @@ import shlex
 import subprocess as sp
 import sys
 
-from tinyscibio import _PathLike, parse_path
+from tinyscibio import _PathLike, make_dir, parse_path
 
 from .logger import logger
 
 
-def _extract_from_bam(
+def _samtools_fastq(
     idx_fspath: _PathLike, bam_fspath: _PathLike
-) -> tuple[_PathLike, _PathLike, _PathLike]:
+) -> tuple[_PathLike, _PathLike, _PathLike, _PathLike]:
     idx_fspath = parse_path(idx_fspath)
-    idx_done = idx_fspath.with_suffix(".done")
-    idx_log = idx_fspath.with_suffix(".log")
+    logdir = idx_fspath.parent / "log"
+    make_dir(logdir, parents=True, exist_ok=True)
+    idx_done = logdir / f"{idx_fspath.stem}.done"
+    idx_log = logdir / f"{idx_fspath.stem}.log"
     r1 = idx_fspath.with_suffix(".R1.fastq")
     r2 = idx_fspath.with_suffix(".R2.fastq")
     logger.initialize()
@@ -21,7 +23,7 @@ def _extract_from_bam(
             "Found extraction done file from previous run: "
             f"{idx_fspath.name}. Skip."
         )
-        return (r1, r2, idx_done)
+        return (r1, r2, idx_done, idx_log)
 
     try:
         logger.info(
@@ -53,7 +55,7 @@ def _extract_from_bam(
     except Exception as e:
         logger.error(e)
         sys.exit(1)
-    return (r1, r2, idx_done)
+    return (r1, r2, idx_done, idx_log)
 
 
 def _novoalign(
