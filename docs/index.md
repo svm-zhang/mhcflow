@@ -17,7 +17,7 @@ pipeline integration.
 - Generates analysis-ready HLA alignments for HLALOH detection
 - Re-engineered in modern style with
   - Modular design
-  - Faster runtime with internal optimization
+  - Runtime speedup
   - Minimum I/O operations
   - Minimum hard-coded code
   - Easy integration to pipeline with packaging and better CLI

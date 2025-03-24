@@ -1,15 +1,15 @@
-## Step by Step
+# Run mhcflow step-by-step
 
-`mhcflow` is re-engineered with a modular design. It generally consists of
-4 steps: `fishing`, `realigning`, `typing`, and `realigning` (again). Each
+`mhcflow` comes with modular design. It generally consists of
+4 steps: `fishing`, `realigning`, `typing`, and `finalizing`. Each
 module implements basic break-and-continue mechanism, meaning that module
-finished previously will be automatically skipped. Also it is more friendly
-to integrate with pipeline/workflow.
+finished previously will be automatically skipped. Each of these modules
+can be easily integrated as a task into a workflow.
 
-The `hlapolysolver.sh` script and `mhcflow` binary (after building the package)
+The `mhcflow.sh` script and `mhcflow` binary (after building the package)
 demonstrates each following step, if you are interested.
 
-### Fisherman: fishing HLA-relevant reads
+## Fisherman: fishing HLA-relevant reads
 
 The original `polysolver` algorithm fishes HLA-related reads via matching
 pre-built kmer (tag) sequence and extracting alignments mapped to regions where
@@ -32,11 +32,11 @@ It is important to note there are other approches to fish HLA-relevant reads.
 For instance, `Optitype` aligns trimmed reads against the HLA reference using
 `razerS3`. From my experience, direct alignment finds more reads and these
 reads tend to align better. However, `razerS3` is not quite memory-efficient,
-which in my opinion limits its utility, especially your computing platform
+which in my opinion limits its utility, especially when your computing platform
 is not unlimited. The approach that the original `polysolver` uses provides
 decent fishing result.
 
-### Realigner: realigning fished reads to HLA reference
+## Realigner: realigning fished reads to HLA reference
 
 Next the realigner module aligns the fished reads against the provided
 class I HLA reference sequence using `novoalign`, same as the original
@@ -54,7 +54,7 @@ Because the academia version of `novoalign` does not support gzipped fastq
 file, this step can take up some disk space depending on the sample
 sequencing depth that is HLA-related.
 
-### Typer: typing HLA class I genotype
+## Typer: typing HLA class I genotype
 
 The typer module is a complete overhaul of the origial perl scripts
 `first_allele_calculations.pl` and `second_allele_calcuations.pl`. The original
@@ -86,7 +86,7 @@ This means the `--race` is always `Unknown`. The choice was made because the rac
 is usually not a known factor when dealing with real-world data.
 I probably will remove the `--race` option from CLI for good in the future.
 
-## Realigner: generating analysis-ready HLA typing result
+## Finalizer: collecting results
 
 The original `polysolver` finishes after typing is done. `mhcflow` goes
 beyond by providing
@@ -132,4 +132,3 @@ realigner \
 The `--mdup` option marks PCR duplicates so that when counting coverage during
 LOH detection, duplicated reads do not get included. If you want to keep duplicates,
 simply not using this option.
-

@@ -33,6 +33,8 @@ The command above generates HLA typing results in the designated output
 directory specified by `--outdir` option. The structure of the output folder
 looks like:
 
+# FIXME: add output files to this folder tree
+
 ``` { .sh }
 .
 ├─ NA12046_class1/
