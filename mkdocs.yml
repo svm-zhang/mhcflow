@@ -74,6 +74,10 @@ markdown_extensions:
   - pymdownx.tilde
   - toc:
       permalink: true
-
+  - tables
 nav:
   - Home: index.md
+  - Getting Started: getting_start.md
+  - Step-by-step: step_by_step.md
+  - MHC class II: class_ii.md
+  - HLA loss of heterozygosith: loh.md
