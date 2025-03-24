@@ -1,0 +1,40 @@
+name: tox
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - mkdocs.yml
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - mkdocs.yml
+  workflow_dispatch:
+
+jobs:
+  tox:
+    name: run checks with ${{ matrix.py }} on ${{ matrix.os }} using tox
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        py: ["3.13", "3.12", "3.11", "3.10"]
+        os: ["ubuntu-latest"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rye project manager
+        uses: eifinger/setup-rye@v4
+      - name: Pin python version ${{ matrix.py }}
+        run: |
+          rye pin ${{ matrix.py }}
+          rye sync
+      - name: Install tox tox-gh-actions dependencies
+        run: |
+          rye add tox --dev
+          rye add tox-gh-actions --dev
+          rye sync
+      - name: Run checks with tox
+        run: rye run tox -e py
