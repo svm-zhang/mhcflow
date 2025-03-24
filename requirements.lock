@@ -18,7 +18,7 @@ idna==3.10
     # via requests
 importlib-metadata==8.6.1
     # via pyfaidx
-mhctyper @ git+https://github.com/svm-zhang/mhctyper@374da891dc81afd4198479f5decdf752ec641b2e
+mhctyper==0.1.7
     # via mhcflow
 ncls==0.0.68
     # via tinyscibio
