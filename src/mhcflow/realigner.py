@@ -16,7 +16,7 @@ from .runnable import _concat, _novoalign, _sort
 
 
 def _run_realigner(
-    bam_fspath,
+    bam_fspath: _PathLike,
     ref: _PathLike,
     fisher_fm_json: _PathLike,
     outdir: _PathLike,
@@ -24,7 +24,7 @@ def _run_realigner(
     overwrite: bool = False,
 ) -> FileManifest:
     logger.info("Realign fished reads to HLA reference.")
-    bametadata = BAMetadata(bam_fspath)
+    bametadata = BAMetadata(str(bam_fspath))
     _check_rg_exists(bametadata)
     _check_single_rg(bametadata)
     rg = bametadata.read_groups[0]

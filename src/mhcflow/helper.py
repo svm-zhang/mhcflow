@@ -1,6 +1,7 @@
 import inspect
 import json
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from tinyscibio import BAMetadata, _PathLike, parse_path
@@ -10,26 +11,26 @@ from .logger import logger
 
 @dataclass
 class FileManifest:
-    _inputs: dict[str, _PathLike | list[_PathLike]] = field(
+    _inputs: dict[str, _PathLike | Sequence[_PathLike]] = field(
         default_factory=dict, init=False
     )
-    _outputs: dict[str, _PathLike | list[_PathLike]] = field(
+    _outputs: dict[str, _PathLike | Sequence[_PathLike]] = field(
         default_factory=dict, init=False
     )
     _aux: dict[str, _PathLike] = field(default_factory=dict, init=False)
-    _intermediates: dict[str, _PathLike | list[_PathLike]] = field(
+    _intermediates: dict[str, _PathLike | Sequence[_PathLike]] = field(
         default_factory=dict, init=False
     )
-    _intermediate_aux: dict[str, _PathLike | list[_PathLike]] = field(
+    _intermediate_aux: dict[str, _PathLike | Sequence[_PathLike]] = field(
         default_factory=dict, init=False
     )
 
     @property
-    def inputs(self) -> dict[str, _PathLike | list[_PathLike]]:
+    def inputs(self) -> dict[str, _PathLike | Sequence[_PathLike]]:
         return self._inputs
 
     @property
-    def outputs(self) -> dict[str, _PathLike | list[_PathLike]]:
+    def outputs(self) -> dict[str, _PathLike | Sequence[_PathLike]]:
         return self._outputs
 
     @property
@@ -37,29 +38,33 @@ class FileManifest:
         return self._aux
 
     @property
-    def intermediate_aux(self) -> dict[str, _PathLike | list[_PathLike]]:
+    def intermediate_aux(self) -> dict[str, _PathLike | Sequence[_PathLike]]:
         return self._intermediate_aux
 
     @property
-    def intermediates(self) -> dict[str, _PathLike | list[_PathLike]]:
+    def intermediates(self) -> dict[str, _PathLike | Sequence[_PathLike]]:
         return self._intermediates
 
-    def _register_inputs(self, **kwargs: _PathLike | list[_PathLike]) -> None:
+    def _register_inputs(
+        self, **kwargs: _PathLike | Sequence[_PathLike]
+    ) -> None:
         self._inputs.update(**kwargs)
 
-    def _register_outputs(self, **kwargs: _PathLike | list[_PathLike]) -> None:
+    def _register_outputs(
+        self, **kwargs: _PathLike | Sequence[_PathLike]
+    ) -> None:
         self._outputs.update(**kwargs)
 
     def _register_aux(self, **kwargs: _PathLike) -> None:
         self._aux.update(**kwargs)
 
     def _register_intermediate(
-        self, **kwargs: _PathLike | list[_PathLike]
+        self, **kwargs: _PathLike | Sequence[_PathLike]
     ) -> None:
         self._intermediates.update(**kwargs)
 
     def _register_intermediate_aux(
-        self, **kwargs: _PathLike | list[_PathLike]
+        self, **kwargs: _PathLike | Sequence[_PathLike]
     ) -> None:
         self._intermediate_aux.update(**kwargs)
 
@@ -165,7 +170,7 @@ def _verify_prev_run(fm: FileManifest, overwrite: bool = False) -> bool:
     not_exists = [
         str(f) for f in intermediate_dones if not parse_path(f).exists()
     ]
-    not_exists += [done] if not done.exists() else []
+    not_exists += [str(done)] if not done.exists() else []
     if not not_exists:
         logger.info("Verified all done files from previous run. Skip.")
         return True

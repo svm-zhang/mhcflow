@@ -3,12 +3,12 @@ from tinyscibio import make_dir, parse_path
 
 from .cli import parse_cmd
 from .finalizer import _run_finalizer
+from .fisher import _run_fisher
 from .logger import logger
 from .realigner import _run_realigner
-from .strawlr import _run_fisher
 
 
-def run_mhcflow():
+def run_mhcflow() -> int:
     parser = parse_cmd()
     args = parser.parse_args()
     logger.initialize()
@@ -68,3 +68,4 @@ def run_mhcflow():
         realigner_fm._clean_attr("intermediates")
         fisher_fm._clean_attr("intermediates")
     logger.info("Finished running mhcflow.")
+    return 0

@@ -16,7 +16,7 @@ from .realigner import _run_realigner
 from .runnable import _novoindex
 
 
-def _dump_seq(allele: str, fa: Faidx, out: Path):
+def _dump_seq(allele: str, fa: Faidx, out: Path) -> None:
     with open(out, "a") as f:
         sequence = fa.fetch(allele, 1, fa.index[allele].rlen)
         f.write(f">{allele}\n{str(sequence)}\n")

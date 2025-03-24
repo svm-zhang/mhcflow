@@ -23,13 +23,13 @@ from .helper import (
     _verify_prev_run,
 )
 from .logger import logger
-from .tag_builder import build
+from .tag_builder import PREBUILD_TYPE, build
 
 CHR6 = ["6", "chr6", "NC00006", "CM000668"]
 
 
 def _fish_unplaced(
-    bam_fspath: _PathLike, prebuilt_tag, out: _PathLike
+    bam_fspath: _PathLike, prebuilt_tag: PREBUILD_TYPE, out: _PathLike
 ) -> tuple[pl.DataFrame, _PathLike]:
     logger.info("Fish unplaced sequence with tag pattern")
     out = parse_path(out)
@@ -112,7 +112,11 @@ def _fish_multi_hla(
     return (merged_qnames, done)
 
 
-def _fish_one_region(region, bam_fspath, prebuilt_tag) -> pl.DataFrame | None:
+def _fish_one_region(
+    region: tuple[str, int, int],
+    bam_fspath: _PathLike,
+    prebuilt_tag: PREBUILD_TYPE,
+) -> pl.DataFrame | None:
     qnames = []
     sn, start, end = region
     with pysam.AlignmentFile(str(bam_fspath), "rb") as bamf:
@@ -125,9 +129,9 @@ def _fish_one_region(region, bam_fspath, prebuilt_tag) -> pl.DataFrame | None:
 
 
 def _fish_multi_regions(
-    split_regions: list[tuple[str | int]],
+    split_regions: list[tuple[str, int, int]],
     bam_fspath: _PathLike,
-    prebuilt_tag,
+    prebuilt_tag: PREBUILD_TYPE,
     out: _PathLike,
     nproc: int = 4,
 ) -> tuple[pl.DataFrame, _PathLike]:
@@ -173,7 +177,7 @@ def _split_regions(
     by: str,
     n_splits: int = 4,
     split_size: int = 500_000,
-) -> list[tuple[str | int]]:
+) -> list[tuple[str, int, int]]:
     if by not in ["len", "num"]:
         raise ValueError(f"Unsupported split by method {by=}")
     logger.info("Split regions into smaller intevals.")

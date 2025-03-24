@@ -29,7 +29,7 @@ def _build_ahocorasick_automaton(
     return A
 
 
-def _build_bloom_filter(tag_fspath: _PathLike, out: _PathLike):
+def _build_bloom_filter(tag_fspath: _PathLike, out: _PathLike) -> None:
     raise NotImplementedError(
         "Building bloom filter method has not been implemented."
     )
@@ -40,7 +40,7 @@ def _load_ahocorasick_automaton(fspath: _PathLike) -> PREBUILD_TYPE:
         return pickle.load(fIN)
 
 
-def _load_bloom_filter():
+def _load_bloom_filter() -> None:
     raise NotImplementedError(
         "Loading prebuilt bloom filter has not been implemented."
     )
