@@ -16,7 +16,9 @@ charset-normalizer==3.4.1
     # via requests
 idna==3.10
     # via requests
-mhctyper==0.1.6
+importlib-metadata==8.6.1
+    # via pyfaidx
+mhctyper @ git+https://github.com/svm-zhang/mhctyper@374da891dc81afd4198479f5decdf752ec641b2e
     # via mhcflow
 ncls==0.0.68
     # via tinyscibio
@@ -24,10 +26,14 @@ numpy==2.2.3
     # via mhctyper
     # via ncls
     # via tinyscibio
+packaging==24.2
+    # via pyfaidx
 polars==1.24.0
     # via mhctyper
     # via tinyscibio
 pyahocorasick==2.1.0
+    # via mhcflow
+pyfaidx==0.8.1.3
     # via mhcflow
 pysam==0.23.0
     # via mhctyper
@@ -43,3 +49,5 @@ tqdm==4.67.1
     # via mhctyper
 urllib3==2.3.0
     # via requests
+zipp==3.21.0
+    # via importlib-metadata

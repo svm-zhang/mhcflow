@@ -7,8 +7,9 @@ authors = [
 ]
 dependencies = [
     "tinyscibio>=0.4.3",
-    "mhctyper>=0.1.6",
     "pyahocorasick>=2.1.0",
+    "mhctyper @ git+https://github.com/svm-zhang/mhctyper@main",
+    "pyfaidx>=0.8.1.3",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
