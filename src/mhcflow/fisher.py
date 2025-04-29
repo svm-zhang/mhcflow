@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import sys
 import time
 from functools import partial
 
@@ -248,9 +249,19 @@ def _run_fisher(
         bam_fspath, prebuilt_tag, unplaced_qname_out
     )
 
-    merged_qnames = pl.concat(
-        [hla_bed_qnames, chr6_qnames, unplaced_qnames]
-    ).unique()
+    # make sure to not concat empty qnames
+    # https://github.com/svm-zhang/mhcflow/issues/2
+    fished_qnames: list[pl.DataFrame] = [
+        qnames
+        for qnames in [hla_bed_qnames, chr6_qnames, unplaced_qnames]
+        if qnames.shape[0] > 0
+    ]
+    # if no qname fished, terminate.
+    if not fished_qnames:
+        logger.info("Zero HLA-related reads fished. Cannot continue.")
+        sys.exit(0)
+
+    merged_qnames = pl.concat(fished_qnames).unique()
     fisher_idx_out = outdir / f"{sm}.fisher.idx.final.tsv"
     merged_qnames.write_csv(fisher_idx_out, separator="\t")
 
