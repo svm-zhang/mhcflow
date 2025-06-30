@@ -1,0 +1,8 @@
+@font-face {
+  font-family: "DejaVu Sans Mono";
+  src: url("../assets/fonts/DejaVuSansMono.ttf") format("truetype");
+}
+
+:root {
+  --md-code-font: "DejaVu Sans Mono";
+}
