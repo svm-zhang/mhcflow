@@ -23,16 +23,16 @@ reference
     class II genes. The coordinates in this file are based on the hg19
     genome build.
 
-!!! note
+???+ note
     If you intent to type a specific set of class II alleles, simply replace
     these file according to the instruction in [Build custom MHC reference]().
 
-!!! note
+???+ note
     `mhcflow` does not provide accompanying `.fai` and `.nix` files along with
     the Fasta file. Please generate them using `samtools faidx` and `novoindex`
     prior to running `mhcflow`.
 
-!!! note
+???+ note
     The class II BED file uses `6` as chromosome 6. If your genome reference
     employs a different naming scheme, please update the file accordingly.
     
@@ -57,7 +57,7 @@ A preliminary benchmark for class II typing was performed using samples from
 1000 Genome project. The results were suprisingly promising and are available
 [here](https://github.com/svm-zhang/hla_benchmark).
 
-!!! note
+???+ note
     The class II benchmark was performed using the `v0.1.0` branch of the `mhcflow`
     repository. I am still in the process of testing `mhcflow` on a subset of
     those samples.

@@ -2,7 +2,6 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/mhcflow)](https://pypi.org/project/mhcflow/)
 ![Python versions](https://img.shields.io/pypi/pyversions/mhcflow)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/mhcflow)](https://pypistats.org/packages/mhcflow)
 ![License](https://img.shields.io/pypi/l/mhcflow)
 
 ## Introduction

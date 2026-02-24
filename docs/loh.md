@@ -60,12 +60,12 @@ mhcflow --bam tumor.bam \
   --realn-only
 ```
 
-!!! note
+???+ note
     The `abc_complete.fasta` reference is replaced with `normal.hla.fasta` to
     ensure that the tumor sample is re-aligned against the reference containing
     the MHC alleles identified from the paired normal sample.
 
-!!! note
+???+ note
     However, the same set of Kmer sequences is used for fishing. This approach
     is beneficial because:<br>
     1. Including Kmer patterns from a larger set of alleles increases
@@ -73,7 +73,7 @@ mhcflow --bam tumor.bam \
     2. Using the same set ensures consistent fisher
     sensitivity across different tumor samples.
 
-!!! note
+???+ note
     In the tumor sample command, the population frequency file provide via
     `--freq` is not used--since allele typing is not performed on the tumor
     sample. The `--realn-only` mode ensures to terminate

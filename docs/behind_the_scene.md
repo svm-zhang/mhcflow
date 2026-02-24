@@ -33,11 +33,11 @@ originate from chromosome 6, while reads from other chromosomes contribute
 negligibly. Due to the polymorphic nature of MHC sequences, `mhcflow`
 also examines unplaced reads that have Kmer matches.
 
-!!! note
+???+ note
     Unplaced reads refer to those that do not have a determined placement
     anywhere on a given reference-they are not considered unmapped by definition.
 
-!!! note
+???+ note
     A limitation of this Kmer fishing strategy is that it only captures
     reads with exact matches. Consequently, any sequencing errors reduces
     its efficiency. To compensate for this limitation, 
@@ -52,7 +52,7 @@ Extracting all reads from a predefined list of HLA regions enables `mhcflow`
 to capture HLA-derived reads that might be missed by the Kmer-fishing process
 due to sequencing errors.
 
-!!! note
+???+ note
     In its simplest form, you can specify only the regions to the HLA genes you
     intend to type, which generally produces good results. Alternatively, you
     may specify additional regions to potentially capture more HLA-derived
@@ -88,11 +88,11 @@ The realigner component takes the HLA-derived reads and re-aligns them against
 the HLA reference using `novoalign`. The realignment process can run in parallel
 when `mhcflow` is executed with a `--nproc` value greater than 1.
 
-!!! note
+???+ note
     The following options are used in the `novoalign` command line for
     realignment: `-R 0 -r All -o FullNW`
 
-!!! note
+???+ note
     The realigner component consumes most of the `mhcflow` runtime compared
     to the other components. The number of reads processed by each realignment
     is determined by dividing the total number of HLA-derived reads
@@ -116,7 +116,7 @@ when `mhcflow` is executed with a `--nproc` value greater than 1.
 Please refer to the [mhctyper documentaton](https://svm-zhang.github.io/mhctyper/)
 for further details on the `typer` component.
 
-!!! note
+???+ note
     Filters applied silently by `mchtyper` can be found
     [here](https://svm-zhang.github.io/mhctyper/#filters-applied-silently)
 
@@ -129,12 +129,12 @@ The `finalizer` component generates data ready for downstream analyses:
 - Sample-level HLA realignment: Realignment of HLA-derived reads against the
     sample-level HLA reference.
 
-!!! note
+???+ note
     In case of presence of homozygous genotypes, the number of reference
     sequences in the sample-level HLA reference may not match the
     number of rows in the typing result table.
 
-!!! note
+???+ note
     The realignment output is coordinate-sorted and indexed but does not
     have duplicates marked.
     
