@@ -24,3 +24,6 @@ wheels/
 .tox/
 
 _version.py
+
+## documentation
+site/
