@@ -1,0 +1,81 @@
+[project]
+site_name = "mhcflow"
+site_description = "Genotyping MHC class I and II alleles"
+site_author = "Simo V. Zhang"
+site_url = "https://svm-zhang.github.io/mhcflow/"
+repo_name = "svm-zhang/mhcflow"
+repo_url = "https://github.com/svm-zhang/mhcflow"
+edit_uri = "edit/main/docs"
+copyright = """
+Copyright &copy; 2026 mhcflow author
+"""
+extra_css = ["stylesheets/extra.css"]
+
+# Section for navigation configuration
+nav = [
+  {"Home" = "index.md"},
+  {"Getting Started" = "getting_start.md"},
+  {"Explain Output" = "output.md"},
+  {"Behind the scene" = "behind_the_scene.md"},
+  {"mhcflow Diagram" = "diagram.md"},
+  {"MHC Class II" = "class_ii.md"},
+  {"LOH Detection" = "loh.md"},
+  {"Limitation" = "limitation.md"},
+  {"Disclaimer" = "disclaimer.md"},
+]
+
+# Section for theme configuration
+[project.theme]
+font = false
+language = "en"
+
+features = [
+  "announce.dismiss",
+  "content.action.edit",
+  "content.action.view",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "header.autohide",
+  "navigation.expand",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+  "toc.integrate"
+]
+
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+edit = "lucide/pencil"
+view = "lucide/view"
+
+# Section for markdown extension configuration 
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format"}
+]
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
